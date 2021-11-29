@@ -1,0 +1,2 @@
+D:\download\code\vsproject\pangolin2\pangolin2\x64\Release\pangolin2.vcxproj.CopyComplete
+D:\download\GitHub_project\c++_轨迹可视化\pangolin2\x64\Release\pangolin2.vcxproj.CopyComplete
