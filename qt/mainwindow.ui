@@ -56,7 +56,7 @@ QTabBar::tab{height:40}</string>
      <enum>QTabWidget::Rounded</enum>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>2</number>
     </property>
     <property name="iconSize">
      <size>
@@ -613,7 +613,7 @@ border-color: rgb(0, 0, 0);</string>
       <property name="geometry">
        <rect>
         <x>330</x>
-        <y>50</y>
+        <y>30</y>
         <width>121</width>
         <height>41</height>
        </rect>
@@ -1065,6 +1065,61 @@ border-style: solid;
       <property name="text">
        <string>轨迹可视化</string>
       </property>
+     </widget>
+     <widget class="QGroupBox" name="groupBox_2">
+      <property name="geometry">
+       <rect>
+        <x>330</x>
+        <y>100</y>
+        <width>120</width>
+        <height>81</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>格式</string>
+      </property>
+      <widget class="QRadioButton" name="quat">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>20</y>
+         <width>91</width>
+         <height>31</height>
+        </rect>
+       </property>
+       <property name="font">
+        <font>
+         <pointsize>10</pointsize>
+        </font>
+       </property>
+       <property name="focusPolicy">
+        <enum>Qt::ClickFocus</enum>
+       </property>
+       <property name="text">
+        <string>四元数</string>
+       </property>
+      </widget>
+      <widget class="QRadioButton" name="rmat">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>50</y>
+         <width>91</width>
+         <height>31</height>
+        </rect>
+       </property>
+       <property name="font">
+        <font>
+         <pointsize>10</pointsize>
+        </font>
+       </property>
+       <property name="focusPolicy">
+        <enum>Qt::ClickFocus</enum>
+       </property>
+       <property name="text">
+        <string>旋转矩阵</string>
+       </property>
+      </widget>
      </widget>
     </widget>
     <widget class="QWidget" name="tab_4">

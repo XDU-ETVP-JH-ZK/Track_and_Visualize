@@ -12,10 +12,11 @@ MainWindow::MainWindow(QWidget *parent)
     ui->s3hide->hide();     //隐藏标签
     ui->tabWidget->tabBar()->hide();     //隐藏tab
 //    ui->tabWidget->setCurrentIndex(0);     //默认第一页
-    /*第三步默认选择pnp、orb和kcf*/
+    /*第三步默认选择pnp、orb和kcf,四元数*/
     ui->pnp->setChecked(true);
     ui->orb->setChecked(true);
     ui->kcf->setChecked(true);
+    ui->quat->setChecked(true);
 }
 
 
@@ -37,6 +38,7 @@ QString imgpath;     //step1选取的路径
 QString videopath;     //step2选取的视频路径
 QString hname;     //解算出的H的文件名
 QString rtname;     //追踪匹配到的数据文件名
+QString tname;     //保存数据格式：四元数或选择矩阵
 ImageScene *sc;     //step2画点的scene
 int n = 0;     //step2点数量
 double m[3][2];     //step2画出的3个点
@@ -837,13 +839,19 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
 //                pangolin::FinishFrame();
 
                   /*保存每一帧解算出的R和t*/
+                QString r = QString::number(rMat(0, 0))+" "+QString::number(rMat(0, 1))+" "+QString::number(rMat(0, 2))+" "+
+                        QString::number(rMat(1, 0))+" "+QString::number(rMat(1, 1))+" "+QString::number(rMat(1, 2))+" "+
+                        QString::number(rMat(2, 0))+" "+QString::number(rMat(2, 1))+" "+QString::number(rMat(2, 2));
                 Eigen::Quaterniond quat(rMat);
                 QString q = QString::number(quat.x())+" "+QString::number(quat.y())+" "
                         +QString::number(quat.z())+" "+QString::number(quat.w());
                 QString t = QString::number(tVec[0])+" "+QString::number(tVec[1])+" "+QString::number(tVec[2]);
                 rtf.open(QIODevice::WriteOnly | QIODevice::Append);
                 QTextStream rtin(&rtf);
-                rtin<<t<<" "<<q<<"\n";
+                if(tname == "q")
+                    rtin<<t<<" "<<q<<"\n";
+                else if(tname == "r")
+                    rtin<<t<<" "<<r<<"\n";
                 rtf.close();
 
                 cout << "Frame:" << track.frameNum << endl;
@@ -907,9 +915,14 @@ void MainWindow::on_track_clicked()     //step3追踪
     else
         {smethod = rcs::Zhang; sm = "-zhang";}
 
+    if(ui->quat->isChecked())
+        tname = "q";
+    else if(ui->rmat->isChecked())
+        tname = "r";
+
 /*若只进行第三步，使用一下语句来给出H文件*/
-//    if(hname.isEmpty())
-//        hname = "./data/H.txt";
+    if(hname.isEmpty())
+        hname = "./data/Hn5.txt";
 
     Eigen::Matrix3d H = GetMatrix(hname);
     Eigen::Matrix3d K = GetMatrix("./data/K.txt");

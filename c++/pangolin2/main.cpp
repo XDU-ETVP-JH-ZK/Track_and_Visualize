@@ -56,16 +56,47 @@ istream& operator >> (istream& in, TranslationVector& t)
 
 //从groundtruth文件获取位姿信息
 int get_pose(string path_to_dataset, vector<vector<float>>& pose, int index);
+int get_pose2(string path_to_dataset, vector<vector<float>>& pose, int index);
 
 //生成地图
 void get_map();
 
+std::vector<std::string> split(std::string str, std::string pattern)
+{
+	std::string::size_type pos;
+	std::vector<std::string> result;
+	str += pattern;//扩展字符串以方便操作
+	int size = str.size();
+	for (int i = 0; i < size; i++)
+	{
+		pos = str.find(pattern, i);
+		if (pos < size)
+		{
+			std::string s = str.substr(i, pos - i);
+			result.push_back(s);
+			i = pos + pattern.size() - 1;
+		}
+	}
+	return result;
+}
+
+//int main() {
+//
+//	ifstream f("5mm2-surf-pnp-2919.txt");
+//	string line;
+//	getline(f, line);
+//	vector<string> a = split(line, " ");
+//	cout << a.size();
+//
+//	return 0;
+//}
+
 int main()
 {
 	//给予文件地址
-	string path_to_dataset = "5mm2-surf-pnp-2919.txt";
+	string path_to_dataset;
 
-	//cin >> path_to_dataset;
+	cin >> path_to_dataset;
 
 	regex number("\\d+");
 
@@ -81,42 +112,70 @@ int main()
 
 	int index = atoi(temp.c_str());
 
-	vector<vector<float>> pose;
-	//取得pose
-	get_pose(path_to_dataset, pose, index);
-	//定义线程
-	std::thread render_loop;
-	//开启线程
-	render_loop = std::thread(get_map);
-	//转换原groundtruth下的数据格式（四元数）到适合pangolin的数据格式（旋转矩阵）
-	for (int i = 0; i < index; i++)
-	{
-		//存储四元数
-		Eigen::Quaterniond quaternion(pose[i][3], pose[i][4], pose[i][5], pose[i][6]);
-		//存储旋转矩阵
-		Eigen::Matrix3d rotation_matrix;
-		//四元数转化旋转矩阵
-		rotation_matrix = quaternion.matrix();
-		//定义一个暂时的pose_temp存储12个位姿数据，9个旋转矩阵的元素，3各位置元素
-		vector<float> pose_temp;
-		//旋转矩阵元素
-		pose_temp.push_back(rotation_matrix(0, 0));	pose_temp.push_back(rotation_matrix(1, 0));	pose_temp.push_back(rotation_matrix(2, 0));
-		pose_temp.push_back(rotation_matrix(0, 1));	pose_temp.push_back(rotation_matrix(1, 1));	pose_temp.push_back(rotation_matrix(2, 1));
-		pose_temp.push_back(rotation_matrix(0, 2));	pose_temp.push_back(rotation_matrix(1, 2));	pose_temp.push_back(rotation_matrix(2, 2));
-		//位置元素
-		pose_temp.push_back(pose[i][0]);			pose_temp.push_back(pose[i][1]);				pose_temp.push_back(pose[i][2]);
-		//将pose_temp存入全局变量pose用于构图，也就是每一行的pose都是一个pose_temp，12个数，最后会有index行
-		pose_fin.push_back(pose_temp);
-		//清空pose_temp内存
-		pose_temp.clear();
-		//暂定
-		//利用序列更新时间长短变化改变更新地图速度
-		Sleep(100 / slam_speed);
+	string line;
+	ifstream f(path_to_dataset);
+	getline(f, line);
+	f.close();
+	vector<string> a = split(line, " ");
+	//int b = a.size();
+	//cout << b;
+
+	if(a.size() == 12){
+		vector<vector<float>> pose;
+		get_pose2(path_to_dataset, pose, index);
+		std::thread render2;
+		render2 = std::thread(get_map);
+		for (int i = 0; i < index; i++) {
+			float temp[12]; vector< float>pose_temp;
+			pose_temp.push_back(pose[i][3]); pose_temp.push_back(pose[i][4]); pose_temp.push_back(pose[i][5]);
+			pose_temp.push_back(pose[i][6]); pose_temp.push_back(pose[i][7]); pose_temp.push_back(pose[i][8]);
+			pose_temp.push_back(pose[i][9]); pose_temp.push_back(pose[i][10]); pose_temp.push_back(pose[i][11]);
+			pose_temp.push_back(pose[i][0]); pose_temp.push_back(pose[i][1]); pose_temp.push_back(pose[i][2]);
+			pose_fin.push_back(pose_temp);
+			pose_temp.clear();
+			Sleep(100 / slam_speed);
+		}
+		pose.clear();
+		render2.join();
 	}
-	//清空pose内存
-	pose.clear();
-	//收束线程
-	render_loop.join();
+	else if (a.size() == 7) {
+		vector<vector<float>> pose;
+		//取得pose
+		get_pose(path_to_dataset, pose, index);
+		//定义线程
+		std::thread render_loop;
+		//开启线程
+		render_loop = std::thread(get_map);
+		//转换原groundtruth下的数据格式（四元数）到适合pangolin的数据格式（旋转矩阵）
+		for (int i = 0; i < index; i++)
+		{
+			//存储四元数
+			Eigen::Quaterniond quaternion(pose[i][3], pose[i][4], pose[i][5], pose[i][6]);
+			//存储旋转矩阵
+			Eigen::Matrix3d rotation_matrix;
+			//四元数转化旋转矩阵
+			rotation_matrix = quaternion.matrix();
+			//定义一个暂时的pose_temp存储12个位姿数据，9个旋转矩阵的元素，3各位置元素
+			vector<float> pose_temp;
+			//旋转矩阵元素
+			pose_temp.push_back(rotation_matrix(0, 0));	pose_temp.push_back(rotation_matrix(1, 0));	pose_temp.push_back(rotation_matrix(2, 0));
+			pose_temp.push_back(rotation_matrix(0, 1));	pose_temp.push_back(rotation_matrix(1, 1));	pose_temp.push_back(rotation_matrix(2, 1));
+			pose_temp.push_back(rotation_matrix(0, 2));	pose_temp.push_back(rotation_matrix(1, 2));	pose_temp.push_back(rotation_matrix(2, 2));
+			//位置元素
+			pose_temp.push_back(pose[i][0]);			pose_temp.push_back(pose[i][1]);				pose_temp.push_back(pose[i][2]);
+			//将pose_temp存入全局变量pose用于构图，也就是每一行的pose都是一个pose_temp，12个数，最后会有index行
+			pose_fin.push_back(pose_temp);
+			//清空pose_temp内存
+			pose_temp.clear();
+			//暂定
+			//利用序列更新时间长短变化改变更新地图速度
+			Sleep(100 / slam_speed);
+		}
+		//清空pose内存
+		pose.clear();
+		//收束线程
+		render_loop.join();
+	}
 	return 0;
 }
 
@@ -141,6 +200,28 @@ int get_pose(string path_to_dataset, vector<vector<float>>& pose, int index)
 		//把pose_temp堆入pose
 		pose.push_back(pose_temp);
 		//清空pose_temp内存
+		pose_temp.clear();
+	}
+	return 1;
+}
+
+int get_pose2(string path_to_dataset, vector<vector<float>>& pose, int index)
+{
+	ifstream fin(path_to_dataset);
+	if (!fin)
+	{
+		cerr << "Can not find the txt file!" << endl;
+		return 1;
+	}
+	for (int i = 0; i < index; i++)
+	{
+		float temp[12]; vector< float>pose_temp;
+		fin >> temp[0] >> temp[1] >> temp[2] >> temp[3] >> temp[4] >> temp[5] >> temp[6] >> temp[7] >> temp[8] >> temp[9] >> temp[10] >> temp[11];
+		pose_temp.push_back(temp[0]); pose_temp.push_back(temp[1]); pose_temp.push_back(temp[2]);
+		pose_temp.push_back(temp[3]); pose_temp.push_back(temp[4]); pose_temp.push_back(temp[5]);
+		pose_temp.push_back(temp[6]); pose_temp.push_back(temp[7]); pose_temp.push_back(temp[8]);
+		pose_temp.push_back(temp[9]); pose_temp.push_back(temp[10]); pose_temp.push_back(temp[11]);
+		pose.push_back(pose_temp);
 		pose_temp.clear();
 	}
 	return 1;
@@ -246,11 +327,13 @@ void get_map()
 				for (int j = 0; j < 3; j++)
 					R.matrix(j, i) = double(pose_fin[k - 1][3 * j + i]);
 			//rotation_matrix = R;
+			//cout << "R" << R << endl;
 
 			TranslationVector t;
 			t.trans = Vector3d(pose_fin[k - 1][9], pose_fin[k - 1][10], pose_fin[k - 1][11]);
 			t.trans = -R.matrix * t.trans;
 			translation_vector = t;
+			//cout << "t" << t << endl;
 		}
 
 		//速度变更

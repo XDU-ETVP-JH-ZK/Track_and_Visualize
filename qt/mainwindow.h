@@ -39,7 +39,8 @@ public:
     double x2y(cv::Point2d x, cv::Point2d y);
     bool online(std::vector<cv::Point2d> w);
     cv::Mat GetMat(QString file, int x, int y);
-    void track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs, rcs::trackerType ttype, rcs::featureType ftype, rcs::solveMethod smethod);
+    void track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs, rcs::trackerType ttype,
+               rcs::featureType ftype, rcs::solveMethod smethod);
     ~MainWindow();
 
 private slots:
