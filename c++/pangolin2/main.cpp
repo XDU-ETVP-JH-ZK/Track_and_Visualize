@@ -94,9 +94,9 @@ std::vector<std::string> split(std::string str, std::string pattern)
 int main()
 {
 	//给予文件地址
-	string path_to_dataset;
+	string path_to_dataset = “5mm2-surf-pnp-2919.txt”;
 
-	cin >> path_to_dataset;
+// 	cin >> path_to_dataset;
 
 	regex number("\\d+");
 
