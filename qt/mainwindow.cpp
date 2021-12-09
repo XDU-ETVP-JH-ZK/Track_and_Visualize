@@ -623,7 +623,7 @@ void MainWindow::on_calcula_clicked()     //step2解算
         fn = Getfname(videopath);
     else if(videopath.isEmpty())
         fn = Getfname(imgpath);
-    hname = "./data/H"+fn+".txt";
+    hname = "./data/H.txt";
     QFile f2(hname);
 
     if(!flag2)
@@ -988,7 +988,7 @@ void MainWindow::on_track_clicked()     //step3追踪
 
 /*若只进行第三步，使用一下语句来给出H文件*/
     if(hname.isEmpty())
-        hname = "./data/Hn5.txt";
+        hname = "./data/H.txt";
 
     Eigen::Matrix3d H = GetMatrix(hname);
     Eigen::Matrix3d K = GetMatrix("./data/K.txt");
