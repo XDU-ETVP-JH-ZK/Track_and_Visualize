@@ -39,6 +39,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 INCLUDEPATH += D:/download/opencv450/build/install/include
 INCLUDEPATH += D:/download/opencv450/build/install/include/opencv2
 INCLUDEPATH += D:/download/vcpkg/installed/x64-windows/include
+#INCLUDEPATH += D:/download/eigen-3.4.0
 
 LIBS += -LD:/download/opencv450/build/install/x64/vc16/bin
 LIBS += -LD:/download/opencv450/build/install/x64/vc16/lib -lopencv_world450
