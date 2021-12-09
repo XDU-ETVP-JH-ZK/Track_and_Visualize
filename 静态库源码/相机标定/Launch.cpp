@@ -23,12 +23,11 @@ void getFilesName(string& File_Directory, string& FileType, vector<string>& File
 
 	intptr_t hFile;
 	hFile = _findfirst(buffer.c_str(), &c_file);   //找第一个文件命
-
 	if (hFile == -1L)   // 检查文件夹目录下存在需要查找的文件
 	{
 		cout << "所选目录下不存在" << FileType << "文件" << endl;
 		ofstream no("./data/no.txt");
-		no << "所选目录不存在" << "FileType" << "文件" << endl;
+		no << "所选目录不存在" << FileType << "文件" << endl;
 		return;
 	}
 	else
