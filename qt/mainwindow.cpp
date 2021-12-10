@@ -9,7 +9,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     setFixedSize(this->width(),this->height());
     ui->groupBox->hide();     //隐藏按钮
-    ui->groupBox_3->hide();
     ui->s3hide->hide();     //隐藏标签
     ui->tabWidget->tabBar()->hide();     //隐藏tab
 //    ui->tabWidget->setCurrentIndex(0);     //默认第一页
@@ -201,7 +200,7 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
         QString iname("./data/dispicture001.jpg");
         QImage img;
         img.load(iname);
-        recvShowPicSignal(img);     //展示标定后图片，可以缩放拖拽
+        recvShowPicSignal(img, ui->imgview);     //展示标定后图片，可以缩放拖拽
         flag1 = true;
     }
 }
@@ -250,7 +249,7 @@ void MainWindow::on_hidetest_clicked()     //隐藏按钮，有部分图片角�
         QString iname("./data/dispicture001.jpg");
         QImage img;
         img.load(iname);
-        recvShowPicSignal(img);     //展示标定后图片，可以缩放拖拽
+        recvShowPicSignal(img, ui->imgview);     //展示标定后图片，可以缩放拖拽
         flag1 = true;
     }
 }
@@ -261,7 +260,7 @@ void MainWindow::on_pushButton_3_clicked()     //显示下一张图片
     if(list.size() > 0)
     {
         QPixmap pixmap(ic.NextImage(list));
-        recvShowPicSignal(pixmap.toImage());
+        recvShowPicSignal(pixmap.toImage(), ui->imgview);
     }
 }
 
@@ -271,25 +270,25 @@ void MainWindow::on_pushButton_2_clicked()     //显示上一张图片
     if(list.size() > 0)
     {
         QPixmap pixmap(ic.PreImage(list));
-        recvShowPicSignal(pixmap.toImage());
+        recvShowPicSignal(pixmap.toImage(), ui->imgview);
     }
 }
 
 
-void MainWindow::recvShowPicSignal(QImage image)     //可以缩放和拖拽地显示图片
+void MainWindow::recvShowPicSignal(QImage image, QGraphicsView *view)     //可以缩放和拖拽地显示图片
 {
     QPixmap ConvertPixmap=QPixmap::fromImage(image);
     QGraphicsScene  *qgraphicsScene = new QGraphicsScene;//要用QGraphicsView就必须要有QGraphicsScene搭配着用
     m_Image = new ImageWidget(&ConvertPixmap);//实例化类ImageWidget的对象m_Image，该类继承自QGraphicsItem，是自己写的类
-    int nwith = ui->imgview->width();//获取界面控件Graphics View的宽度
-    int nheight = ui->imgview->height();//获取界面控件Graphics View的高度
+    int nwith = view->width();//获取界面控件Graphics View的宽度
+    int nheight = view->height();//获取界面控件Graphics View的高度
     m_Image->setQGraphicsViewWH(nwith,nheight);//将界面控件Graphics View的width和height传进类m_Image中
     qgraphicsScene->addItem(m_Image);//将QGraphicsItem类对象放进QGraphicsScene中
     /*使视窗的大小固定在原始大小，不会随图片的放大而放大（默认状态下图片放大的时候视窗两边会自动出现滚动条，并且视窗内的视野会变大），
         防止图片放大后重新缩小的时候视窗太大而不方便观察图片*/
-    ui->imgview->setSceneRect(QRectF(-(nwith/2),-(nheight/2),nwith,nheight));
-    ui->imgview->setScene(qgraphicsScene);
-    ui->imgview->setFocus();//将界面的焦点设置到当前Graphics View控件
+    view->setSceneRect(QRectF(-(nwith/2),-(nheight/2),nwith,nheight));
+    view->setScene(qgraphicsScene);
+    view->setFocus();//将界面的焦点设置到当前Graphics View控件
 }
 
 
@@ -596,7 +595,7 @@ bool MainWindow::online(std::vector<cv::Point2d> w)     //判断是否存在三�
                 double a = x2y(w[i], w[j]);
                 double b = x2y(w[i], w[k]);
                 double c = x2y(w[j], w[k]);
-                double p = (a+ b+ c)/2;
+                double p = (a + b + c)/2;
                 double s = sqrt(p*(p-a)*(p-b)*(p-c));     //海伦公式
                 if(s == 0){
                     qDebug()<<i<<" "<<j<<" "<<k;
@@ -759,8 +758,15 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     QFile rtf(fname);
 
     int fpsnum = 0;     //匹配到的帧数
+    int endflag = 0;
 
-    double fx, fy, cx, cy;
+    rcs::myTracker track(ttype, ftype, smethod);
+    Eigen::Matrix3d r;
+    Eigen::Vector3d t;
+    video.read(frame);  track.Track(frame, K, distCoeffs, H, r, t);
+    video.read(frame);  track.Track(frame, K, distCoeffs, H, r, t);
+
+    int fx, fy, cx, cy;
     fx = K(0, 0);       fy = K(1, 1);
     cx = K(0, 2);       cy = K(1, 2);
 
@@ -768,13 +774,13 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     glEnable(GL_DEPTH_TEST);
     pangolin::OpenGlRenderState s_cam(
         pangolin::ProjectionMatrix(1024, 768, fx, fy, cx, cy, 0.2, 2000),
-        pangolin::ModelViewLookAt(-2, 0, 28, 0, 0, 0, pangolin::AxisY)
+        pangolin::ModelViewLookAt(t[0], t[1], t[2], 0, 0, 0, pangolin::AxisY)
     );
     pangolin::Handler3D handler(s_cam);
     pangolin::View& d_cam = pangolin::CreateDisplay()
         .SetBounds(0.0, 1.0, 0.0, 1.0, -640.0f / 480.0f)
         .SetHandler(&handler);
-    pangolin::CreatePanel("menu").SetBounds(0.0, 0.25, 0.0, 0.3);
+    pangolin::CreatePanel("menu").SetBounds(0.0, 0.3, 0.0, 0.31);
     pangolin::Var<bool> menu("menu.Trajectory", true, true);
     pangolin::Var<bool> menu2("menu.KeyFrame", true, true);
     string routput1, routput2, routput3, toutput;
@@ -783,7 +789,14 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     pangolin::Var<string> pangolin_rm3("menu.  ", routput3);
     pangolin::Var<string> pangolin_vt("menu.t", toutput);
 
-    rcs::myTracker track(ttype, ftype, smethod);
+    WId wid = (WId)FindWindow(L"pangolin", L"Pangolin_Track");
+    qDebug()<<"wid:"<<wid;
+    QWindow *mw = QWindow::fromWinId(wid);
+    QWidget *m_widget = QWidget::createWindowContainer(mw, this, Qt::Widget);
+//    ui->verticalLayout->setContentsMargins(0, 0, 0, 0);
+    ui->verticalLayout->addWidget(m_widget);
+
+//    rcs::myTracker track(ttype, ftype, smethod);
     while(1){
         if(pangolin::ShouldQuit())
             break;
@@ -811,30 +824,30 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
 
                 int k = 0;
                 for(k = 0; k < pose.size();k++){
-                glPushMatrix();
-                std::vector<GLfloat> Twc = { pose[k][0],pose[k][1],pose[k][2],0,
-                                          pose[k][3],pose[k][4],pose[k][5],0,
-                                          pose[k][6],pose[k][7],pose[k][8],0,
-                                          pose[k][9],pose[k][10],pose[k][11],1 };
-                glMultMatrixf(Twc.data());
-                if (menu2) {
-                    glLineWidth(2);
-                    glBegin(GL_LINES);
-                    glColor3f(1.0f, 0.f, 0.f);
-                    glVertex3f(0, 0, 0);		glVertex3f(0.1, 0, 0);
-                    glColor3f(0.f, 1.0f, 0.f);
-                    glVertex3f(0, 0, 0);		glVertex3f(0, 0.2, 0);
-                    glColor3f(0.f, 0.f, 1.0f);
-                    glVertex3f(0, 0, 0);		glVertex3f(0, 0, 0.1);
-                    glColor3f(0.f, 1.f, 1.f);
-                    glVertex3f(0, 0, 0);		glVertex3f(0.1, 0.2, 0);
-                    glVertex3f(0.1, 0, 0);		glVertex3f(0, 0.2, 0);
-                    glVertex3f(0, 0.2, 0);		glVertex3f(0.1, 0.2, 0);
-                    glVertex3f(0.1, 0, 0);		glVertex3f(0.1, 0.2, 0);
-                    glEnd();
+                    glPushMatrix();
+                    std::vector<GLfloat> Twc = { pose[k][0],pose[k][1],pose[k][2],0,
+                                              pose[k][3],pose[k][4],pose[k][5],0,
+                                              pose[k][6],pose[k][7],pose[k][8],0,
+                                              pose[k][9],pose[k][10],pose[k][11],1 };
+                    glMultMatrixf(Twc.data());
+                    if (menu2) {
+                        glLineWidth(2);
+                        glBegin(GL_LINES);
+                        glColor3f(1.0f, 0.f, 0.f);
+                        glVertex3f(0, 0, 0);		glVertex3f(0.1, 0, 0);
+                        glColor3f(0.f, 1.0f, 0.f);
+                        glVertex3f(0, 0, 0);		glVertex3f(0, 0.2, 0);
+                        glColor3f(0.f, 0.f, 1.0f);
+                        glVertex3f(0, 0, 0);		glVertex3f(0, 0, 0.1);
+                        glColor3f(0.f, 1.f, 1.f);
+                        glVertex3f(0, 0, 0);		glVertex3f(0.1, 0.2, 0);
+                        glVertex3f(0.1, 0, 0);		glVertex3f(0, 0.2, 0);
+                        glVertex3f(0, 0.2, 0);		glVertex3f(0.1, 0.2, 0);
+                        glVertex3f(0.1, 0, 0);		glVertex3f(0.1, 0.2, 0);
+                        glEnd();
+                    }
+                    glPopMatrix();
                 }
-                glPopMatrix();
-            }
 
                 QString a = QString::number(rMat(0, 0))+","+QString::number(rMat(0, 1))+","+QString::number(rMat(0, 2));
                 routput1 = a.toStdString();
@@ -893,11 +906,20 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
                 ui->s3log->append("t:"+QString::number(tVec[0])+"\n"+QString::number(tVec[1])+"\n"+QString::number(tVec[2]));
                 ui->s3log->append("||t||="+QString::number(tVec.norm()));
                 fpsnum++;
+                endflag = fpsnum-1;
             }
             else
                 ui->s3log->append(QString::fromStdString(track.log));//输出错误信息
         }
         else{
+            endflag++;
+            if(endflag == fpsnum){
+                video.release();
+                ui->s3log->append("一共匹配到"+QString::number(fpsnum)+"帧！");
+                rtname = "./data/"+Getfname(videopath)+ft+sm+"-"+QString::number(fpsnum)+".txt";
+                QFile::rename(fname, rtname);
+            }
+
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             d_cam.Activate(s_cam);
             glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -941,10 +963,10 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
             pangolin::FinishFrame();
         }
     }
-    video.release();
-    ui->s3log->append("一共匹配到"+QString::number(fpsnum)+"帧！");
-    rtname = "./data/"+Getfname(videopath)+ft+sm+"-"+QString::number(fpsnum)+".txt";
-    QFile::rename(fname, rtname);
+//    video.release();
+//    ui->s3log->append("一共匹配到"+QString::number(fpsnum)+"帧！");
+//    rtname = "./data/"+Getfname(videopath)+ft+sm+"-"+QString::number(fpsnum)+".txt";
+//    QFile::rename(fname, rtname);
 }
 
 
@@ -971,8 +993,6 @@ void MainWindow::on_track_clicked()     //step3追踪
         ttype = rcs::MIL;
     else if(ui->tld->isChecked())
         ttype = rcs::TLD;
-    else if(ui->mosse->isChecked())
-        ttype = rcs::MOSSE;
     else
         ttype = rcs::MEDIANFLOW;
 
@@ -1034,17 +1054,6 @@ void MainWindow::on_three2four_clicked()     //step3到step4
     else{
         ui->tabWidget->setCurrentIndex(3);
     }
-}
-
-
-void MainWindow::on_pushButton_clicked()     //不同步的pangolin可视化
-{
-    if(!flagtrack)
-        QMessageBox::warning(NULL, QString("提示"),
-                             QString("请先开始跟踪"),
-                             QString("确定"));
-    else
-        pview(rtname.toStdString());
 }
 
 

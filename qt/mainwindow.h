@@ -33,7 +33,7 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     Images_Change ic;
-    void recvShowPicSignal(QImage image);
+    void recvShowPicSignal(QImage image, QGraphicsView *view);
     void LabelDisplayMat(QLabel *label, cv::Mat &mat);
     Eigen::Matrix3d GetMatrix(QString file);
     double x2y(cv::Point2d x, cv::Point2d y);
@@ -85,8 +85,6 @@ private slots:
     void on_finish_clicked();
 
     void on_in_d_editingFinished();
-
-    void on_pushButton_clicked();
 
     void on_chosevideo_clicked();
 
