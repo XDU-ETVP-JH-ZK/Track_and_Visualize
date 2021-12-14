@@ -447,9 +447,9 @@ void MainWindow::on_s2run_clicked()     //输出选取点的物理坐标和像�
 
         num++;
         qDebug()<<num;
-        int x = ui->in_x->text().toInt();
-        int y = ui->in_y->text().toInt();
-        double d = ui->in_d_2->text().toInt();
+        double x = ui->in_x->text().toDouble();
+        double y = ui->in_y->text().toDouble();
+        double d = ui->in_d_2->text().toDouble();
 
         QTextStream in(&f);
         QString read = in.readAll();
