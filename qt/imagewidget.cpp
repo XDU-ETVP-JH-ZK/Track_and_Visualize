@@ -1,4 +1,4 @@
-#include "imagewidget.h"
+﻿#include "imagewidget.h"
 #include <QDebug>
 #include <QGraphicsSceneMouseEvent>
 #include <QPointF>

@@ -304,6 +304,34 @@ void MainWindow::on_one2two_clicked()     //step1到step2
 
 
 /////////////////////////////////////////////////////////////step2/////////////////////////////////////////////////////////////
+void MainWindow::on_in_x_editingFinished()     //检测输入的是不是非负整数
+{
+    if(!ui->in_x->text().contains(reg2))
+    {
+        QMessageBox::warning(NULL, QString("提示"),
+                             QString("请输入非负整数"),
+                             QString("确定"));
+        ui->in_x->setFocus();
+        ui->in_x->clear();
+    }
+}
+
+
+void MainWindow::on_in_y_returnPressed()     //输入框回车直接触发按钮事件
+{
+    if(!ui->in_y->text().contains(reg2))
+    {
+        QMessageBox::warning(NULL, QString("提示"),
+                             QString("请输入整数"),
+                             QString("确定"));
+        ui->in_y->setFocus();
+        ui->in_y->clear();
+    }
+    else
+        on_s2run_clicked();
+}
+
+
 void MainWindow::on_chosepic_clicked()     //step2选择图片
 {
     if(!ui->in_d_2->text().contains(reg3)){
@@ -327,6 +355,35 @@ void MainWindow::on_chosepic_clicked()     //step2选择图片
         sc = new ImageScene();     //使用重写的类来读取图片，实现点击图片获得图片像素坐标
         ImageItem *it = new ImageItem(QPixmap::fromImage(img));
         sc->addItem(it);
+        ui->s2view->setScene(sc);
+        flag2 = true;
+    }
+}
+
+
+void MainWindow::on_chosevideo_clicked()     //step2选择视频文件
+{
+    if(!ui->in_d_2->text().contains(reg3)){
+        QMessageBox::warning(NULL, QString("提示"),
+                             QString("请输入正数"),
+                             QString("确定"));
+        ui->in_d_2->setFocus();
+        ui->in_d_2->clear();
+    }
+    else{
+        videopath = QFileDialog::getOpenFileName(
+                        this, "选择文件",
+                        "/",
+                        "视频文件 (*.mp4 *.avi *.mkv);; 所有文件 (*.*);; ");
+        cv::VideoCapture video = cv::VideoCapture(videopath.toStdString());
+        cv::Mat frame1;
+        video.read(frame1);     //获取视频第一帧
+        QImage img = MatToQImage(frame1);
+        sc = new ImageScene();     //使用重写的类来读取图片，实现点击图片获得图片像素坐标
+        ImageItem *it = new ImageItem(QPixmap::fromImage(img));
+        it->setGraphicsViewWH(ui->s2view->width(), ui->s2view->height());
+        sc->addItem(it);
+        ui->s2view->setSceneRect(QRectF(0, 0, ui->s2view->width(), ui->s2view->height()));
         ui->s2view->setScene(sc);
         flag2 = true;
     }
@@ -365,61 +422,6 @@ QImage MainWindow::MatToQImage(cv::Mat mtx)     //cv::Mat转成QImage
 }
 
 
-void MainWindow::on_chosevideo_clicked()     //step2选择视频文件
-{
-    if(!ui->in_d_2->text().contains(reg3)){
-        QMessageBox::warning(NULL, QString("提示"),
-                             QString("请输入正数"),
-                             QString("确定"));
-        ui->in_d_2->setFocus();
-        ui->in_d_2->clear();
-    }
-    else{
-        videopath = QFileDialog::getOpenFileName(
-                        this, "选择文件",
-                        "/",
-                        "视频文件 (*.mp4 *.avi *.mkv);; 所有文件 (*.*);; ");
-        cv::VideoCapture video = cv::VideoCapture(videopath.toStdString());
-        cv::Mat frame;
-        video.read(frame);     //获取视频第一帧
-        QImage img = MatToQImage(frame);
-        sc = new ImageScene();     //使用重写的类来读取图片，实现点击图片获得图片像素坐标
-        ImageItem *it = new ImageItem(QPixmap::fromImage(img));
-        sc->addItem(it);
-        ui->s2view->setScene(sc);
-        flag2 = true;
-    }
-}
-
-
-void MainWindow::on_in_x_editingFinished()     //检测输入的是不是非负整数
-{
-    if(!ui->in_x->text().contains(reg2))
-    {
-        QMessageBox::warning(NULL, QString("提示"),
-                             QString("请输入非负整数"),
-                             QString("确定"));
-        ui->in_x->setFocus();
-        ui->in_x->clear();
-    }
-}
-
-
-void MainWindow::on_in_y_returnPressed()     //输入框回车直接触发按钮事件
-{
-    if(!ui->in_y->text().contains(reg2))
-    {
-        QMessageBox::warning(NULL, QString("提示"),
-                             QString("请输入整数"),
-                             QString("确定"));
-        ui->in_y->setFocus();
-        ui->in_y->clear();
-    }
-    else
-        on_s2run_clicked();
-}
-
-
 void MainWindow::on_s2run_clicked()     //输出选取点的物理坐标和像素坐标
 {
     QFile f("./data/coordinate.txt");     //读取选取点的像素坐标
@@ -438,12 +440,12 @@ void MainWindow::on_s2run_clicked()     //输出选取点的物理坐标和像�
             ui->in_y->setFocus();
     }
     else{
-        QList<QGraphicsItem*> listItem = sc->items();     //删除之前三次的标记
-        for(int i = 0; i < 3; i++)
-        {
-            sc->removeItem(listItem.at(0));
-            listItem.removeAt(0);
-        }
+//        QList<QGraphicsItem*> listItem = sc->items();     //删除之前三次的标记
+//        for(int i = 0; i < 3; i++)
+//        {
+//            sc->removeItem(listItem.at(0));
+//            listItem.removeAt(0);
+//        }
 
         num++;
         qDebug()<<num;
@@ -456,17 +458,17 @@ void MainWindow::on_s2run_clicked()     //输出选取点的物理坐标和像�
         QStringList pix = read.split(" ");     //获得像素坐标
         double pix_y = pix[pix.size()-1].toDouble();
         double pix_x = pix[pix.size()-2].toDouble();
-        QGraphicsRectItem  *pItem = new QGraphicsRectItem();     //画上一个标记
-        QPen pen = pItem->pen();
-        pen.setWidth(5);
-        pen.setColor(Qt::white);
-        pItem->setPen(pen);
-        pItem->setBrush(QBrush(QColor(0, 160, 230)));
-        pItem->setRect(pix_x, pix_y, 2, 2);
-        sc->addItem(pItem);
+//        QGraphicsRectItem  *pItem = new QGraphicsRectItem();     //画上一个标记
+//        QPen pen = pItem->pen();
+//        pen.setWidth(5);
+//        pen.setColor(Qt::red);
+//        pItem->setPen(pen);
+//        pItem->setRect(pix_x, pix_y, 2, 2);
+//        sc->addItem(pItem);
         f.remove();
 
-        QString str = QString::number(x*d)+" "+QString::number(y*d)+" "+QString::number(pix_x)+" "+QString::number(pix_y);
+        QString str = QString::number(x*d)+" "+QString::number(y*d)+" "+QString::number(pix_x, 'f', 3)
+                +" "+QString::number(pix_y, 'f', 3);
         ui->s2txt->append(str);
         QFile ff("./data/log.txt");     //保存所有已选点
         if(num == 1 && ff.exists())     //存入第一个点时若已存在此文件，先删除
@@ -477,7 +479,8 @@ void MainWindow::on_s2run_clicked()     //输出选取点的物理坐标和像�
                                   QString("确定"));
         else{
             QTextStream input(&ff);
-            input<<QString::number(x*d)<<" "<<QString::number(y*d)<<" "<<QString::number(pix_x)<<" "<<QString::number(pix_y)<<"\n";
+            input<<QString::number(x*d)<<" "<<QString::number(y*d)<<" "<<QString::number(pix_x, 'f', 3)
+                <<" "<<QString::number(pix_y, 'f', 3)<<"\n";
             ff.close();
             ui->in_x->clear();
             ui->in_y->clear();
@@ -490,42 +493,48 @@ void MainWindow::on_s2run_clicked()     //输出选取点的物理坐标和像�
 
 void ImageItem::mousePressEvent(QGraphicsSceneMouseEvent* event)     //监听鼠标点击事件，点击后获取坐标并做标记
 {
-    int x = event->scenePos().x();
-    int y = event->scenePos().y();
-
-    if(choseflag)     //每个点需要选三次，若多余三次需要先录入当前点
-        QMessageBox::warning(NULL, QString("提示"),
-                             QString("已选择一个点三次，请先录入该点"),
-                             QString("确定"));
-    else{
-        QGraphicsRectItem  *pItem = new QGraphicsRectItem();     //每次点击都做一个标记
-        QPen pen = pItem->pen();
-        pen.setWidth(2);
-        pen.setColor(Qt::white);
-        pItem->setPen(pen);
-        pItem->setRect(x, y, 2, 2);
-        sc->addItem(pItem);
-        qDebug() << "(" << x << ", " << y << ")";
-        m[n][0] = x;
-        m[n][1] = y;
-        n++;
+    if(event->button() == Qt::LeftButton){
+//        double x = event->scenePos().x();
+//        double y = event->scenePos().y();
+        if(choseflag)     //每个点需要选三次，若多余三次需要先录入当前点
+            QMessageBox::warning(NULL, QString("提示"),
+                                 QString("已选择一个点三次，请先录入该点"),
+                                 QString("确定"));
+        else{
+//            QGraphicsRectItem  *pItem = new QGraphicsRectItem();     //每次点击都做一个标记
+//            QPen pen = pItem->pen();
+//            pen.setWidth(2);
+//            pen.setColor(Qt::red);
+//            pItem->setPen(pen);
+//            pItem->setRect(x, y, 2, 2);
+//            sc->addItem(pItem);
+            qDebug() << "(" << event->pos().x() << ", " << event->pos().y() << ")";
+            m[n][0] = event->pos().x();
+            m[n][1] = event->pos().y();
+            n++;
+        }
+        if(n == 3){     //已选三次之后计算出均值，用作最终输入的像素坐标
+            n = 0;
+            double x2, y2;
+            x2 = (m[0][0] + m[1][0] + m[2][0]) / 3;
+            y2 = (m[0][1] + m[1][1] + m[2][1]) / 3;
+            qDebug()<<x2<<" "<<y2;
+            QString coordinate = QString::number(x2, 'f', 3) + " " + QString::number(y2, 'f', 3);     //精确到小数点后6位
+            QDir dir;
+            if(!dir.exists("data"))
+                dir.mkdir("data");
+            QFile f("./data/coordinate.txt");
+            f.open(QIODevice::WriteOnly);
+            QTextStream txtOutput(&f);
+            txtOutput << coordinate << "\n";
+            f.close();
+            choseflag = true;
+        }
     }
-    if(n == 3){     //已选三次之后计算出均值，用作最终输入的像素坐标
-        n = 0;
-        double x2, y2;
-        x2 = (m[0][0] + m[1][0] + m[2][0]) / 3;
-        y2 = (m[0][1] + m[1][1] + m[2][1]) / 3;
-        qDebug()<<x2<<" "<<y2;
-        QString coordinate = QString::number(x2, 'f', 3) + " " + QString::number(y2, 'f', 3);     //精确到小数点后三位
-        QDir dir;
-        if(!dir.exists("data"))
-            dir.mkdir("data");
-        QFile f("./data/coordinate.txt");
-        f.open(QIODevice::WriteOnly);
-        QTextStream txtOutput(&f);
-        txtOutput << coordinate << "\n";
-        f.close();
-        choseflag = true;
+    else if(event->button() == Qt::RightButton){
+        m_scaleValue = m_scaleDafault;
+        setScale(m_scaleValue);
+        setPos(0, 0);
     }
 }
 
@@ -546,12 +555,9 @@ void MainWindow::on_back_clicked()     //撤销选取的点
                               QString("打开/data/log.txt文件失败"),
                               QString("确定"));
     else{
-        QList<QGraphicsItem*> listItem = sc->items();
-//        if(listItem.size() > 1)
-//        {
-            sc->removeItem(listItem.at(0));
-            listItem.removeAt(0);
-//        }
+//        QList<QGraphicsItem*> listItem = sc->items();
+//            sc->removeItem(listItem.at(0));
+//            listItem.removeAt(0);
         qDebug()<<num;
         int index = 0;
         QTextStream in(&f2);     //删除最后一行
