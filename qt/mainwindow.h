@@ -34,6 +34,7 @@ public:
     MainWindow(QWidget *parent = nullptr);
     Images_Change ic;
     void recvShowPicSignal(QImage image, QGraphicsView *view);
+    void showpic(QImage pic, QGraphicsView *view);
     void LabelDisplayMat(QLabel *label, cv::Mat &mat);
     Eigen::Matrix3d GetMatrix(QString file);
     double x2y(cv::Point2d x, cv::Point2d y);
@@ -87,8 +88,6 @@ private slots:
     void on_in_d_editingFinished();
 
     void on_chosevideo_clicked();
-
-    QImage MatToQImage(cv::Mat mtx);
 
 private:
     Ui::MainWindow *ui;
