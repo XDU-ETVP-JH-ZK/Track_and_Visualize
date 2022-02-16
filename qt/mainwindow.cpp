@@ -107,7 +107,7 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
     f2.setFileName("./data/all.txt");     //所有图片角点提取失败
     f3.setFileName("./data/no.txt");     //不存在图片
     f4.setFileName("./data/diff.txt");     //图片分辨率不同
-    QString path = QDir::currentPath()+"/data/";     //删除data文件夹下所有jpg文件和txt文件
+    QString path = QDir::currentPath()+"/data/";     //删除data文件夹下所有jpg文件
     qDebug()<<path;
     QDir dir(path);
     dir.setFilter(QDir::Files | QDir::NoSymLinks);
@@ -120,6 +120,7 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
         QFile ft(path+dl[i]);
         ft.remove();
     }
+    /*删除data文件夹下所有jpg文件*/
     if(f1.exists()) f1.remove();
     if(f2.exists()) f2.remove();
     if(f3.exists()) f3.remove();
@@ -129,11 +130,12 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
     int row = ui->in_row->text().toInt();
     int d= ui->in_d->text().toInt();
     imgpath = QFileDialog::getExistingDirectory(this, "选择文件夹", "/");
-    calib(imgpath.toStdString(), row, col, d);
+    QByteArray cdata = imgpath.toLocal8Bit();     //防止中文在QString转std::string时乱码
+    calib(std::string(cdata), row, col, d);     //相机标定静态库的方法
 
 
-    QFile file("./data/K.txt");     //读取标定结果
-    QFile file2("./data/distCoeffs.txt");     //读取标定结果
+    QFile file("./data/K.txt");     //内参矩阵保存文件
+    QFile file2("./data/distCoeffs.txt");     //畸变系数保存文件
     if(f4.open(QIODevice::ReadOnly))
     {
         QMessageBox::critical(NULL, QString("出错了"),
@@ -158,7 +160,7 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
     else if(f1.open(QIODevice::ReadOnly | QIODevice::Text))
     {
         QTextStream ein(&f1);
-        ein.setEncoding(QStringConverter::System);     //防止中文乱码
+        ein.setEncoding(QStringConverter::System);     //防止文件中的中文乱码
         ui->text1->setText("提示：以下图片角点提取失败，请删除后重新标定！");
         ui->text1->append(ein.readAll());
         f1.close();
@@ -354,14 +356,14 @@ void MainWindow::on_chosepic_clicked()     //step2选择图片
     }
     else{
         QString path;
-        if(imgpath.isEmpty())     //把step1选取的路径作为默认路径
+        if(imgpath.isEmpty())
             path = "/";
         else
-            path = imgpath;
+            path = imgpath;     //把step1选取的路径作为默认路径
         QString s = QFileDialog::getOpenFileName(
                         this, "选择文件",
                         path,
-                        "图片文件 (*.jpg *.png);; 所有文件 (*.*);; ");
+                        "图片文件 (*.jpg *.png);; 所有文件 (*.*)");
         QImage img(s);
         piclist.append(s);
         sc = new ImageScene();     //使用重写的类来读取图片，实现点击图片获得图片像素坐标
@@ -416,8 +418,9 @@ void MainWindow::on_chosevideo_clicked()     //step2选择视频文件
         videopath = QFileDialog::getOpenFileName(
                         this, "选择文件",
                         "/",
-                        "视频文件 (*.mp4 *.avi *.mkv);; 所有文件 (*.*);; ");
-        cv::VideoCapture video = cv::VideoCapture(videopath.toStdString());
+                        "视频文件 (*.mp4 *.avi *.mkv);; 所有文件 (*.*)");
+        QByteArray cdata = videopath.toLocal8Bit();
+        cv::VideoCapture video = cv::VideoCapture(std::string(cdata));
         cv::Mat frame1;
         video.read(frame1);     //获取视频第一帧
         QImage img = MatToQImage(frame1);
@@ -437,7 +440,7 @@ void MainWindow::on_chosevideo_clicked()     //step2选择视频文件
 }
 
 
-void MainWindow::on_s2run_clicked()     //输出选取点的物理坐标和像素坐标
+void MainWindow::on_s2run_clicked()     //录入按钮，输出选取点的物理坐标和像素坐标
 {
     QFile f("./data/coordinate.txt");     //读取选取点的像素坐标
     if(!flag2)
@@ -558,7 +561,7 @@ void ImageItem::mousePressEvent(QGraphicsSceneMouseEvent* event)     //监听鼠
             cv::imwrite(picname.toStdString(), pic);
         }
     }
-    else if(event->button() == Qt::RightButton){
+    else if(event->button() == Qt::RightButton){     //复原
         m_scaleValue = m_scaleDafault;
         setScale(m_scaleValue);
         setPos(0, 0);
@@ -791,7 +794,8 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
 {
     if(videopath.isEmpty())
         videopath = QFileDialog::getOpenFileName(this, "选择文件", "/", "视频文件 (*.mp4 *.avi *.mkv);; 所有文件 (*.*);; ");
-    cv::VideoCapture video = cv::VideoCapture(videopath.toStdString());
+    QByteArray cdata = videopath.toLocal8Bit();
+    cv::VideoCapture video = cv::VideoCapture(std::string(cdata));
     cv::Mat frame;
 
 
