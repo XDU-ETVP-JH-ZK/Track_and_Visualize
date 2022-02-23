@@ -18,6 +18,9 @@
 #include <QGraphicsSceneWheelEvent>
 #include <QGraphicsItem>
 
+#include <QGraphicsView>
+#include <QTextBrowser>
+
 enum Enum_ZoomState2{
     NO_STATE2,
     RESET2,
@@ -37,6 +40,12 @@ public:
     void wheelEvent(QGraphicsSceneWheelEvent *event);
     void setGraphicsViewWH(int nwidth, int nheight);
     qreal getScaleValue() const;
+
+
+    QGraphicsView *ui_view;
+    QTextBrowser *ui_text;
+
+
 private:
     qreal m_scaleValue;
     qreal m_scaleDafault;

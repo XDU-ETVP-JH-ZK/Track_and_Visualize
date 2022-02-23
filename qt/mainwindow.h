@@ -81,10 +81,6 @@ private slots:
 
     void on_three2two_clicked();
 
-    void on_four2three_clicked();
-
-    void on_finish_clicked();
-
     void on_in_d_editingFinished();
 
     void on_chosevideo_clicked();

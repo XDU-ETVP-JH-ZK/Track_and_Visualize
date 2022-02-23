@@ -338,6 +338,9 @@ void MainWindow::on_in_y_returnPressed()     //输入框回车直接触发按钮
 void MainWindow::showpic(QImage pic, QGraphicsView *view)     //可缩放的显示图片，并可以获取点击处像素坐标
 {
     ImageItem *it = new ImageItem(QPixmap::fromImage(pic));
+
+    it->ui_text = ui->s2txt;
+
     it->setGraphicsViewWH(view->width(), view->height());
     sc->addItem(it);
     view->setSceneRect(QRectF(0, 0, view->width(), view->height()));
@@ -488,28 +491,30 @@ void MainWindow::on_s2run_clicked()     //录入按钮，输出选取点的物�
         QString str = QString::number(x*d)+" "+QString::number(y*d)+" "+QString::number(pix_x, 'f', 3)
                 +" "+QString::number(pix_y, 'f', 3);
         ui->s2txt->append(str);
+
+
+        sc->clear();
+        QImage pic(piclist[piclist.length()-1]);
+        showpic(pic, ui->s2view);
+
+
+        ui->in_x->clear();
+        ui->in_y->clear();
+        ui->in_x->setFocus();
+        choseflag = false;
         QFile ff("./data/log.txt");     //保存所有已选点
         if(num == 1 && ff.exists())     //存入第一个点时若已存在此文件，先删除
             ff.remove();
-        if(!ff.open(QIODevice::WriteOnly | QIODevice::Append))
-            QMessageBox::critical(NULL, QString("提示"),
-                                  QString("打开/data/log.txt文件失败"),
-                                  QString("确定"));
-        else{
-            QTextStream input(&ff);
-            input<<QString::number(x*d)<<" "<<QString::number(y*d)<<" "<<QString::number(pix_x, 'f', 3)
-                <<" "<<QString::number(pix_y, 'f', 3)<<"\n";
-            ff.close();
-
-            ui->in_x->clear();
-            ui->in_y->clear();
-            ui->in_x->setFocus();
-            choseflag = false;
-
-            sc->clear();
-            QImage pic(piclist[piclist.length()-1]);
-            showpic(pic, ui->s2view);
-        }
+//        if(!ff.open(QIODevice::WriteOnly | QIODevice::Append))
+//            QMessageBox::critical(NULL, QString("提示"),
+//                                  QString("打开/data/log.txt文件失败"),
+//                                  QString("确定"));
+//        else{
+//            QTextStream input(&ff);
+//            input<<QString::number(x*d)<<" "<<QString::number(y*d)<<" "<<QString::number(pix_x, 'f', 3)
+//                <<" "<<QString::number(pix_y, 'f', 3)<<"\n";
+//            ff.close();
+//        }
     }
 }
 
@@ -532,6 +537,11 @@ void ImageItem::mousePressEvent(QGraphicsSceneMouseEvent* event)     //监听鼠
 //            pItem->setRect(event->scenePos().x(), event->scenePos().y(), 2, 2);
 //            sc->addItem(pItem);
             qDebug() << "(" << event->pos().x() << ", " << event->pos().y() << ")";
+
+
+//            ui_text->setText("succeed");
+
+
             m[n][0] = event->pos().x();
             m[n][1] = event->pos().y();
             n++;
@@ -573,18 +583,20 @@ void MainWindow::on_back_clicked()     //撤销选取的点
 {
     int t = num;
     num--;
-    QFile f2("./data/log.txt");
+//    QFile f2("./data/log.txt");
     if(num < 0){
         QMessageBox::warning(NULL, QString("提示"),
                              QString("无法撤销"),
                              QString("确定"));
         num++;
     }
-    else if(!f2.open(QIODevice::ReadOnly))
-        QMessageBox::critical(NULL, QString("提示"),
-                              QString("打开/data/log.txt文件失败"),
-                              QString("确定"));
+//    else if(!f2.open(QIODevice::ReadOnly))
+//        QMessageBox::critical(NULL, QString("提示"),
+//                              QString("打开/data/log.txt文件失败"),
+//                              QString("确定"));
     else{
+        qDebug()<<num;
+
         QList<QGraphicsItem*> listItem = sc->items();
         sc->removeItem(listItem.at(0));
         listItem.removeAt(0);
@@ -596,27 +608,37 @@ void MainWindow::on_back_clicked()     //撤销选取的点
         QImage pic(pfn2);
         showpic(pic, ui->s2view);
 
-        qDebug()<<num;
-        int index = 0;
-        QTextStream in(&f2);     //删除最后一行
-        QString read = in.readAll();
-//        qDebug()<<read;
-        f2.close();
-        int len = read.length();
-        while(--t)
-        {
-            if(t<0) break;
-            index = read.indexOf('\n', index+1);
-        }
-        read.remove(index, len-index);
-        qDebug()<<read;
 
-        ui->s2txt->setText(read);
-        f2.open(QIODevice::WriteOnly);
-//        QTextStream out(&f2);
-//        out<<read<<"\n";
-        in<<read<<"\n";
-        f2.close();
+        ui->s2txt->moveCursor(QTextCursor::End);
+        ui->s2txt->moveCursor(QTextCursor::StartOfLine);
+        ui->s2txt->moveCursor(QTextCursor::End, QTextCursor::KeepAnchor);
+        ui->s2txt->textCursor().removeSelectedText();
+        ui->s2txt->textCursor().deletePreviousChar();
+
+
+//        QTextStream in(&f2);
+//        f2.open(QIODevice::WriteOnly);
+//        QString read = ui->s2txt->toPlainText();
+//        in<<read<<"\n";
+//        f2.close();
+
+
+//        int index = 0;
+//        QTextStream in(&f2);     //删除最后一行
+//        QString read = in.readAll();
+//        f2.close();
+//        int len = read.length();
+//        while(--t)
+//        {
+//            if(t<0) break;
+//            index = read.indexOf('\n', index+1);
+//        }
+//        read.remove(index, len-index);
+//        qDebug()<<read;
+//        ui->s2txt->setText(read);
+//        f2.open(QIODevice::WriteOnly);
+//        in<<read<<"\n";
+//        f2.close();
     }
 }
 
@@ -677,24 +699,28 @@ void MainWindow::on_calcula_clicked()     //step2解算
         QMessageBox::warning(NULL, QString("提示"),
                              QString("选的点必须不少于6个"),
                              QString("确定"));
-    else if(!f.open(QIODevice::ReadOnly | QIODevice::Text))
-            QMessageBox::critical(NULL, QString("提示"),
-                                 QString("打开./data/log.txt文件失败"),
-                                 QString("确定"));
+//    else if(!f.open(QIODevice::ReadOnly | QIODevice::Text))
+//            QMessageBox::critical(NULL, QString("提示"),
+//                                 QString("打开./data/log.txt文件失败"),
+//                                 QString("确定"));
     else{
+        QString read = ui->s2txt->toPlainText();
         QTextStream in(&f);     //读取坐标数据
-        QString a = in.readAll();
-        a.replace("\n", " ");
-        QStringList b = a.split(" ");
-        b.pop_back();
+        f.open(QIODevice::WriteOnly);
+        in<<read<<"\n";
+        f.close();
+        read.replace("\n", " ");
+        QStringList readline = read.split(" ");
+        readline.pop_back();
         std::vector<cv::Point2d> w, p;
-        for(int i = 0; i< b.size(); i++)
+
+        for(int i = 0; i< readline.size(); i++)
         {
             cv::Point2d p1, p2;
-            p1.x = b[i++].toDouble();
-            p1.y = b[i++].toDouble();
-            p2.x = b[i++].toDouble();
-            p2.y = b[i].toDouble();
+            p1.x = readline[i++].toDouble();
+            p1.y = readline[i++].toDouble();
+            p2.x = readline[i++].toDouble();
+            p2.y = readline[i].toDouble();
             w.push_back(p1);
             p.push_back(p2);
         }
@@ -722,11 +748,11 @@ void MainWindow::on_calcula_clicked()     //step2解算
                 QStringList a = in2.readAll().split(" ");
                 QString a1 = a[0] +" "+ a[1] +" "+ a[2];
                 QString a2 = a[3] +" "+ a[4] +" "+ a[5];
-                QString a3 = a[6] +" "+ a[7] +" "+ a[8];
-                ui->s2txt->append("\nH:");
-                ui->s2txt->append(a1);
-                ui->s2txt->append(a2);
-                ui->s2txt->append(a3);
+                QString a3 = a[6] +" "+ a[7] +" "+ a[8] + "\n";
+                ui->s2h->append("H:");
+                ui->s2h->append(a1);
+                ui->s2h->append(a2);
+                ui->s2h->append(a3);
             }
         }
     }
@@ -796,20 +822,34 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
         videopath = QFileDialog::getOpenFileName(this, "选择文件", "/", "视频文件 (*.mp4 *.avi *.mkv);; 所有文件 (*.*);; ");
     QByteArray cdata = videopath.toLocal8Bit();
     cv::VideoCapture video = cv::VideoCapture(std::string(cdata));
+//    cv::VideoCapture video(0);
+
     cv::Mat frame;
 
-
-    QString fname = "./data/"+Getfname(videopath)+ft+sm+".txt";
+    QString fname = "./data/"+Getfname(videopath)+ft+sm+"-"+tname+".txt";
     QFile rtf(fname);
 
     int fpsnum = 0;     //匹配到的帧数
     int endflag = 0;
 
+    double current_t;
+
     rcs::myTracker track(ttype, ftype, smethod);
     Eigen::Matrix3d r;
     Eigen::Vector3d t;
     video.read(frame);  track.Track(frame, K, distCoeffs, H, r, t);
-    video.read(frame);  track.Track(frame, K, distCoeffs, H, r, t);
+//    video.read(frame);  track.Track(frame, K, distCoeffs, H, r, t);
+
+    current_t = t.norm();
+    qDebug()<<current_t;
+    ui->s3log->append("Frame:"+QString::number(track.frameNum));
+    ui->s3log->append("R:"+QString::number(r(0,0))+" "+QString::number(r(0,1))+" "+QString::number(r(0,2)));
+    ui->s3log->append(QString::number(r(1,0))+" "+QString::number(r(1,1))+" "+QString::number(r(1,2)));
+    ui->s3log->append(QString::number(r(2,0))+" "+QString::number(r(2,1))+" "+QString::number(r(2,2)));
+    ui->s3log->append("||R||="+QString::number(r.determinant()));
+    ui->s3log->append("t:"+QString::number(t[0])+"\n"+QString::number(t[1])+"\n"+QString::number(t[2]));
+    ui->s3log->append("t:"+QString::number(t[0])+" "+QString::number(t[1])+" "+QString::number(t[2]));
+    ui->s3log->append("||t||="+QString::number(t.norm()));
 
     int fx, fy, cx, cy;
     fx = K(0, 0);       fy = K(1, 1);
@@ -825,7 +865,7 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     pangolin::View& d_cam = pangolin::CreateDisplay()
         .SetBounds(0.0, 1.0, 0.0, 1.0, -640.0f / 480.0f)
         .SetHandler(&handler);
-    pangolin::CreatePanel("menu").SetBounds(0.0, 0.3, 0.0, 0.31);
+    pangolin::CreatePanel("menu").SetBounds(0.0, 0.32, 0.0, 0.32);
     pangolin::Var<bool> menu("menu.Trajectory", true, true);
     pangolin::Var<bool> menu2("menu.KeyFrame", true, true);
     string routput1, routput2, routput3, toutput;
@@ -834,7 +874,7 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     pangolin::Var<string> pangolin_rm3("menu.  ", routput3);
     pangolin::Var<string> pangolin_vt("menu.t", toutput);
 
-    WId wid = (WId)FindWindow(L"pangolin", L"Pangolin_Track");
+    WId wid = (WId)FindWindow(L"pangolin", L"Pangolin_Track");     //获得pangolin界面的句柄，将其放入窗口部件中
     qDebug()<<"wid:"<<wid;
     QWindow *mw = QWindow::fromWinId(wid);
     QWidget *m_widget = QWidget::createWindowContainer(mw, this, Qt::Widget);
@@ -853,7 +893,7 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
             LabelDisplayMat(ui->video_label, frame);
             LabelDisplayMat(ui->match_label, track.matchImg);
             ui->s3hide->show();
-            if (ok && track.frameNum != 1){
+            if (ok){
                   /*pangolin可视化*/
                 vector<float> pose_t;
                 pose_t.push_back(rMat(0, 0));pose_t.push_back(rMat(1, 0));pose_t.push_back(rMat(2, 0));
@@ -949,7 +989,12 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
                 ui->s3log->append(QString::number(rMat(2,0))+" "+QString::number(rMat(2,1))+" "+QString::number(rMat(2,2)));
                 ui->s3log->append("||R||="+QString::number(rMat.determinant()));
                 ui->s3log->append("t:"+QString::number(tVec[0])+"\n"+QString::number(tVec[1])+"\n"+QString::number(tVec[2]));
+                ui->s3log->append("t:"+QString::number(tVec[0])+" "+QString::number(tVec[1])+" "+QString::number(tVec[2]));
                 ui->s3log->append("||t||="+QString::number(tVec.norm()));
+
+                ui->s3log->append("Δt="+QString::number(tVec.norm()-current_t));
+                current_t = tVec.norm();
+
                 fpsnum++;
                 endflag = fpsnum-1;
             }
@@ -961,9 +1006,16 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
             if(endflag == fpsnum){
                 video.release();
                 ui->s3log->append("一共匹配到"+QString::number(fpsnum)+"帧！");
-                rtname = "./data/"+Getfname(videopath)+ft+sm+"-"+QString::number(fpsnum)+".txt";
+                rtname = "./data/"+Getfname(fname)+"-"+QString::number(fpsnum)+".txt";
                 QFile::rename(fname, rtname);
             }
+
+//            QString outputlog = ui->s3log->toPlainText();
+//            QFile flog("./data/s3log.txt");
+//            flog.open(QIODevice::WriteOnly);
+//            QTextStream log(&flog);
+//            log<<outputlog;
+//            flog.close();
 
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             d_cam.Activate(s_cam);
@@ -1023,22 +1075,22 @@ void MainWindow::on_track_clicked()     //step3追踪
 
     if(ui->orb->isChecked())
         {ftype = rcs::ORB; ft = "-orb";}
-    else if(ui->sift->isChecked())
-        ftype = rcs::SIFT;
-    else
+    if(ui->sift->isChecked())
+        {ftype = rcs::SIFT; ft = "-sift";}
+    if(ui->surf->isChecked())
         {ftype = rcs::SURF; ft = "-surf";}
 
     if(ui->kcf->isChecked())
         ttype = rcs::KCF;
-    else if(ui->boosting->isChecked())
+    if(ui->boosting->isChecked())
         ttype = rcs::BOOSTING;
-    else if(ui->csrt->isChecked())
+    if(ui->csrt->isChecked())
         ttype = rcs::CSRT;
-    else if(ui->mil->isChecked())
+    if(ui->mil->isChecked())
         ttype = rcs::MIL;
-    else if(ui->tld->isChecked())
+    if(ui->tld->isChecked())
         ttype = rcs::TLD;
-    else
+    if(ui->medianflow->isChecked())
         ttype = rcs::MEDIANFLOW;
 
     if(ui->pnp->isChecked())
@@ -1096,21 +1148,7 @@ void MainWindow::on_three2four_clicked()     //step3到step4
         QMessageBox::warning(NULL, QString("提示"),
                              QString("请先开始跟踪"),
                              QString("确定"));
-    else{
-        ui->tabWidget->setCurrentIndex(3);
-    }
-}
-
-
-/////////////////////////////////////////////////////////////step4/////////////////////////////////////////////////////////////
-void MainWindow::on_four2three_clicked()     //step4到step3
-{
-    ui->tabWidget->setCurrentIndex(2);
-}
-
-
-void MainWindow::on_finish_clicked()     //完成可视化，关闭窗口
-{
-    QApplication::exit();
+    else
+        QApplication::exit();
 }
 
