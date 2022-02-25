@@ -877,8 +877,14 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     WId wid = (WId)FindWindow(L"pangolin", L"Pangolin_Track");     //获得pangolin界面的句柄，将其放入窗口部件中
     qDebug()<<"wid:"<<wid;
     QWindow *mw = QWindow::fromWinId(wid);
+
+//    QWidget *qmw;
+//    qmw = QWidget::createWindowContainer(mw, this->ui->widget);
+//    qmw->setMinimumSize(ui->widget->width()-2, ui->widget->height()-2);
+//    qmw->show();
+
     QWidget *m_widget = QWidget::createWindowContainer(mw, this, Qt::Widget);
-//    ui->verticalLayout->setContentsMargins(0, 0, 0, 0);
+    ui->verticalLayout->setContentsMargins(1, 1, 1, 1);
     ui->verticalLayout->addWidget(m_widget);
 
 //    rcs::myTracker track(ttype, ftype, smethod);

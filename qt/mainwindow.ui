@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>1195</width>
-    <height>772</height>
+    <height>833</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -56,7 +56,7 @@ QTabBar::tab{height:40}</string>
      <enum>QTabWidget::Rounded</enum>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>2</number>
     </property>
     <property name="iconSize">
      <size>
@@ -1132,7 +1132,7 @@ border-style: solid;
        </property>
       </widget>
      </widget>
-     <widget class="QGroupBox" name="groupBox">
+     <widget class="QWidget" name="widget" native="true">
       <property name="geometry">
        <rect>
         <x>330</x>
@@ -1142,18 +1142,16 @@ border-style: solid;
        </rect>
       </property>
       <property name="styleSheet">
-       <string notr="true">QGroupBox{border-width: 1px;
-		border-style: solid;
-		border-color: rgb(0, 0, 0);}
-QVBoxLayout{border:none}</string>
+       <string notr="true">border:1px solid black
+</string>
       </property>
       <widget class="QWidget" name="verticalLayoutWidget">
        <property name="geometry">
         <rect>
-         <x>10</x>
-         <y>10</y>
-         <width>831</width>
-         <height>521</height>
+         <x>0</x>
+         <y>0</y>
+         <width>851</width>
+         <height>541</height>
         </rect>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout"/>
