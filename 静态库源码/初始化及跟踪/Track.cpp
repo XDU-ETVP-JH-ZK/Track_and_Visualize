@@ -18,8 +18,10 @@ string rcs::tEnumToString(trackerType tracker)
 		return "TLD";
 	if (tracker == MEDIANFLOW)
 		return "MEDIANFLOW";
-	if (tracker == MOSSE)
-		return "MOSSE";
+	//if (tracker == GOTURN)
+	//	return "GOTURN";
+	/*if (tracker == MOSSE)
+		return "MOSSE";*/
 	if (tracker == CSRT)
 		return "CSRT";
 	else
@@ -36,7 +38,10 @@ string rcs::fEnumToString(featureType feature)
 	else
 		return NULL;
 }
-
+/**
+ * 初始化 myTracker
+ *
+ */
 rcs::myTracker::myTracker(trackerType track_s, featureType feature_s, solveMethod solve_m)
 { 
 
@@ -46,7 +51,7 @@ rcs::myTracker::myTracker(trackerType track_s, featureType feature_s, solveMetho
 	this->track_s = track_s;
 	this->feature_s = feature_s;
 	this->solve_m = solve_m;
-	this->matchImg = NULL;
+	//this->matchImg = NULL;
 }
 
 bool rcs::myTracker::Track(cv::Mat& frame, Eigen::Matrix3d cameraMatrix, cv::Mat distCoeffs, Eigen::Matrix3d homoMatrixH, Eigen::Matrix3d& rMat, Eigen::Vector3d& tVec)
@@ -56,7 +61,9 @@ bool rcs::myTracker::Track(cv::Mat& frame, Eigen::Matrix3d cameraMatrix, cv::Mat
 
 	vector<cv::Point2d> fixedFramePoints;
 	vector<cv::Point2d> currentFramePoints;
-
+	/**
+	 * 初始帧
+	 */
 	if (flag == 0)
 	{
 		flag = 1;
@@ -71,12 +78,12 @@ bool rcs::myTracker::Track(cv::Mat& frame, Eigen::Matrix3d cameraMatrix, cv::Mat
 			tracker = cv::TrackerTLD::create();
 		if (track_s == MEDIANFLOW)
 			tracker = cv::TrackerMedianFlow::create();
-
 		if (track_s == MOSSE)
 			tracker = cv::TrackerMOSSE::create();
 		if (track_s == CSRT)
 			tracker = cv::TrackerCSRT::create();
 		
+		//cv::putText(frame, "Frame: " + to_string(frameNum), cv::Point(20, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1.5);
 		rect = cv::selectROI("ROI Selector", frame, false);
 		if (rect.empty()) 
 		{
@@ -86,6 +93,8 @@ bool rcs::myTracker::Track(cv::Mat& frame, Eigen::Matrix3d cameraMatrix, cv::Mat
 			log = "Cancel selection.";
 			return 0;
 		}
+		// 第一帧原始图像
+		//this->frame_0 = frame.clone();
 		initRect = rect;
 		initFrame = frame(initRect);
 		cv::cvtColor(initFrame, initFrame, cv::COLOR_BGR2GRAY);
@@ -119,6 +128,9 @@ bool rcs::myTracker::Track(cv::Mat& frame, Eigen::Matrix3d cameraMatrix, cv::Mat
 		cv::putText(frame, "Frame: " + to_string(frameNum), cv::Point(20, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 0, 0), 1.5);
 		if (ok && rect.x > 0 && rect.y > 0 && rect.x + rect.width <= frame.cols && rect.y + rect.height <= frame.rows)
 		{
+			// 第n帧原始图像
+			//this->frame_n = frame;
+
 			cv::rectangle(frame, rect, cv::Scalar(255, 0, 0));
 			cv::Mat roi = frame(rect);
 			cv::cvtColor(roi, roi, cv::COLOR_BGR2GRAY);
@@ -133,6 +145,9 @@ bool rcs::myTracker::Track(cv::Mat& frame, Eigen::Matrix3d cameraMatrix, cv::Mat
 					calSuccess = CalExtrinsicMatrixUsePnP(currentFramePoints, objPoints, cameraMatrix, distCoeffs, rMat, tVec);
 				if (calSuccess)
 				{
+					/* 跟踪结果显示 */
+					//cv::imshow("Tracking", frame);
+					//cv::waitKey(1);
 					log = "succeed";
 					return 1;
 				}
@@ -141,10 +156,15 @@ bool rcs::myTracker::Track(cv::Mat& frame, Eigen::Matrix3d cameraMatrix, cv::Mat
 		else
 		{
 			log = "error: Frame " + to_string(frameNum) + ", Tracking failure detected.";
+			//cv::putText(frame, "Tracking failure detected", cv::Point(20, 80), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1.5);
 		}		
 	}
-	rMat.setZero();
-	tVec.setZero();
+	/* 跟踪结果显示 */
+	//cv::imshow("Tracking", frame);
+	//cv::waitKey(1);
+	/* 结算失败后，当前帧旋转矩阵和平移向量置空*/
+	//rMat.setZero();
+	//tVec.setZero();
 	return 0;
 }
 
@@ -168,39 +188,97 @@ bool rcs::myTracker::DetectAndMatchImagePoints(featureType feature_s, cv::Mat im
 		orb->detectAndCompute(imgFixedFrame, cv::noArray(), feature1.keypoints, feature1.descriptors);
 		orb->detectAndCompute(imgCurrentFrame, cv::noArray(), feature2.keypoints, feature2.descriptors);
 	}
-	if (feature1.keypoints.size() < 20 || feature2.keypoints.size() < 20)
+	if (feature1.keypoints.size() < 30 || feature2.keypoints.size() < 30)
 	{
-		log = "errro: Frame " + to_string(frameNum) + ", Less than 20 key points.";
+		log = "errro: Frame " + to_string(frameNum) + ", Less than 30 key points.";
 		return 0;
 	}
 	cv::Ptr<cv::DescriptorMatcher> matcher;
+
+	//FLANN match
+	/*if (feature_s == ORB)
+		matcher = cv::makePtr<cv::FlannBasedMatcher>(cv::makePtr<cv::flann::LshIndexParams>(12, 20, 2));
+	else
+		matcher = cv::FlannBasedMatcher::create();*/
+
+	//BF match
 	if (feature_s == ORB)
+		//orb为二进制描述子，匹配时计算描述子之间的海明距离
 		matcher = cv::BFMatcher::create(cv::NORM_HAMMING, true);
 	else
+		//sift surf为浮点型描述子，匹配时计算其欧氏距离
 		matcher = cv::BFMatcher::create(cv::NORM_L2, true);
+	
 	std::vector<cv::DMatch> matches;
+	//std::vector<cv::DMatch> goodMatch;
+
 	matcher->match(feature1.descriptors, feature2.descriptors, matches);
+	//matcher->match(feature1.descriptors, feature2.descriptors, goodMatch);
+
 	/* 按distance升序排序 */
-	sort(matches.begin(), matches.end(), [](cv::DMatch x, cv::DMatch y) { return x.distance < y.distance; });
-	if (matches.size() < 20)
+	//sort(matches.begin(), matches.end(), [](cv::DMatch x, cv::DMatch y) { return x.distance < y.distance; });
+	
+	if (matches.size() < 30)
 	{
-		log = "errro: Frame " + to_string(frameNum) + ", Less than 20 matched points.";
+		log = "errro: Frame " + to_string(frameNum) + ", Less than 30 matched points.";
 		return 0;
 	}
+	/*
+	double minDist = 0, maxDist = 0;
+	for (size_t i = 0; i < matches.size(); i++)
+	{
+		double dist = matches[i].distance;
+		if (dist > maxDist)
+			maxDist = dist;
+		if (dist < minDist)
+			minDist = dist;
+	}
+
 	std::vector<cv::DMatch> goodMatch;
-	for (int i = 0; i < 20; i++)
+	for (size_t i = 0; i < matches.size(); i++)
+	{
+		double dist = matches[i].distance;
+		if (dist < max(3 * minDist, 1.0))
+		{
+			goodMatch.push_back(matches[i]);
+		}
+	}
+	*/
+	/*
+	std::vector<cv::DMatch> goodMatch;
+	for (int i = 0; i < 30; i++)
 	{
 		goodMatch.push_back(matches[i]);
 	}
+
+	if (goodMatch.size() < 30) 
+	{
+		log = "errro: Frame " + to_string(frameNum) + ", Less than 30 good matched points.";
+		return 0;
+	}
+	*/
 	std::vector<cv::Point2d> points1;
 	std::vector<cv::Point2d> points2;
-	for (int i = 0; i < goodMatch.size(); i++)
+	for (int i = 0; i < matches.size(); i++)
 	{
-		points1.push_back(feature1.keypoints[goodMatch[i].queryIdx].pt);
-		points2.push_back(feature2.keypoints[goodMatch[i].trainIdx].pt);
+		points1.push_back(feature1.keypoints[matches[i].queryIdx].pt);
+		points2.push_back(feature2.keypoints[matches[i].trainIdx].pt);
 	}
+
+	//cv::Mat img1 = imgFixedFrame.clone();
+	//cv::Mat img2 = imgCurrentFrame.clone();
+	//cv::drawMatches(img1, feature1.keypoints, img2, feature2.keypoints, matches, beforeMatchImg, cv::Scalar::all(-1), cv::Scalar::all(-1), vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	
+	//std::vector<cv::DMatch> nullMatch;
+	//nullMatch.clear();
 	/*筛选前匹配效果*/
-	cv::drawMatches(img1, feature1.keypoints, img2, feature2.keypoints, goodMatch, beforeMatchImg, cv::Scalar::all(-1), cv::Scalar::all(-1), vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	//cv::drawKeypoints(img1, feature1.keypoints, this->img1, cv::Scalar::all(-1));
+	//cv::drawKeypoints(img2, feature2.keypoints, this->img2, cv::Scalar::all(-1));
+	//cv::drawMatches(img1, feature1.keypoints, img2, feature2.keypoints, matches, allPointsImg, cv::Scalar::all(-1), cv::Scalar::all(-1), vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	//cv::drawMatches(img1, feature1.keypoints, img2, feature2.keypoints, nullMatch, grayImg, cv::Scalar::all(-1), cv::Scalar::all(-1), vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	//cv::putText(beforeMatchImg, "Match points:" + to_string(goodMatch.size()), cv::Point(20, 40), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1.0);
+	//cv::putText(beforeMatchImg, "Frame:" + to_string(frameNum), cv::Point(20, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1.0);
+
 	/* 匹配点筛选 */
 	cv::Mat H_CV = cv::findHomography(points1, points2, cv::RANSAC, 5.0);
 	if (H_CV.empty())
@@ -225,9 +303,31 @@ bool rcs::myTracker::DetectAndMatchImagePoints(featureType feature_s, cv::Mat im
 		{
 			fixedFramePoints.push_back(cv::Point2d(points1[i].x += initRect.x, points1[i].y += initRect.y));
 			currentFramePoints.push_back(cv::Point2d(points2[i].x += roiX, points2[i].y += roiY));
-			goodMatch_1.push_back(goodMatch[i]);
+			goodMatch_1.push_back(matches[i]);
 		}
 	}
+	/*  
+	for (int i = 0; i < goodMatch_1.size(); i++) {
+		feature1.keypoints[goodMatch_1[i].queryIdx].pt.x += initRect.x;
+		feature1.keypoints[goodMatch_1[i].queryIdx].pt.y += initRect.y;
+		feature2.keypoints[goodMatch_1[i].trainIdx].pt.x += roiX;
+		feature2.keypoints[goodMatch_1[i].trainIdx].pt.y += roiY;
+	}
+*/
+	/*
+	if (goodMatch_1.size() < 15)
+	{
+		if (solve_m == Zhang)
+		{
+			log = "error: Frame " + to_string(frameNum) + ", Less than 15 good matched points.";
+			return 0;
+		}
+		else if (solve_m == PnP && goodMatch_1.size() < 8)
+		{
+			log = "error: Frame " + to_string(frameNum) + ", Less than 8 good matched points.";
+			return 0;		
+		}
+	}*/
 	/* 筛选后匹配点数 >= 8 */
 	if (goodMatch_1.size() < 8)
 	{
@@ -236,7 +336,13 @@ bool rcs::myTracker::DetectAndMatchImagePoints(featureType feature_s, cv::Mat im
 	}
 
 	/*筛选后匹配效果*/
-	cv::drawMatches(imgFixedFrame, feature1.keypoints, imgCurrentFrame, feature2.keypoints, goodMatch_1, matchImg, cv::Scalar::all(-1), cv::Scalar::all(-1), vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	//cv::drawMatches(img_0, feature1.keypoints, img_n, feature2.keypoints, goodMatch_1, matchImg, cv::Scalar::all(-1), cv::Scalar::all(-1), vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	//cv::drawMatches(imgFixedFrame, feature1.keypoints, imgCurrentFrame, feature2.keypoints, goodMatch_1, matchImg, cv::Scalar::all(-1), cv::Scalar::all(-1), vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	//cv::putText(matchImg, "Match points:" + to_string(goodMatch_1.size()), cv::Point(20, 40), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1.0);
+	//cv::putText(matchImg, "Frame:" + to_string(frameNum), cv::Point(20, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1.0);
+	//cv::imshow("goodMatchImage", matchImg);
+	//cv::waitKey(1);
+
 	return 1;
 }
 
@@ -271,6 +377,9 @@ bool rcs::myTracker::CalExtrinsicMatrixUseZhang(vector<cv::Point2d> imagePoints,
 	Eigen::Matrix3d K_inv = cameraMatrix.inverse();
 	double lamda1 = 1 / (K_inv*h1).norm();
 	double lamda2 = 1 / (K_inv*h2).norm();
+	//调试
+	//cout << "lamda1: " << lamda1 << endl;
+	//cout << "lamda2: " << lamda2 << endl;
 
 	Eigen::Vector3d R1 = (lamda1 + lamda2) / 2 * K_inv*h1;
 	Eigen::Vector3d R2 = (lamda1 + lamda2) / 2 * K_inv*h2;
@@ -305,7 +414,6 @@ bool rcs::myTracker::CalExtrinsicMatrixUsePnP(vector<cv::Point2d> imagePoints, v
 		cv::Rodrigues(rvec, rvec);
 		cv::cv2eigen(rvec, rMat);
 		cv::cv2eigen(tvec, tVec);
-		log = "succeed";
 		return 1;
 	}
 	else
