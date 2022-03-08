@@ -31,8 +31,9 @@ namespace rcs
 	public:
 		int frameNum;
 		std::string log;
-		cv::Mat beforeMatchImg;
-		cv::Mat matchImg;
+		//cv::Mat grayImg, allPointsImg, img1, img2;
+		//cv::Mat beforeMatchImg;
+		//cv::Mat matchImg, frame_0, frame_n;
 		myTracker(trackerType track_s, featureType feature_s, solveMethod solve_m);
 		bool Track(cv::Mat &img, Eigen::Matrix3d cameraMatrix, cv::Mat distCoeffs, Eigen::Matrix3d homoMatrixH, Eigen::Matrix3d& rMat, Eigen::Vector3d& tVec);
 	private:
