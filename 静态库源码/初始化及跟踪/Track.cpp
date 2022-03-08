@@ -51,7 +51,7 @@ rcs::myTracker::myTracker(trackerType track_s, featureType feature_s, solveMetho
 	this->track_s = track_s;
 	this->feature_s = feature_s;
 	this->solve_m = solve_m;
-	//this->matchImg = NULL;
+	this->matchImg = NULL;
 }
 
 bool rcs::myTracker::Track(cv::Mat& frame, Eigen::Matrix3d cameraMatrix, cv::Mat distCoeffs, Eigen::Matrix3d homoMatrixH, Eigen::Matrix3d& rMat, Eigen::Vector3d& tVec)
@@ -294,7 +294,7 @@ bool rcs::myTracker::DetectAndMatchImagePoints(featureType feature_s, cv::Mat im
 	matrix = H * matrix;
 	/* 重投影点 */
 	std::vector<cv::Point2d> reproPoints;
-	std::vector<cv::DMatch> goodMatch_1;
+	std::vector<cv::DMatch> betterMatch;
 	for (int i = 0; i < matrix.cols(); i++)
 	{
 		reproPoints.push_back(cv::Point2d(matrix.col(i)[0] / matrix.col(i)[2], matrix.col(i)[1] / matrix.col(i)[2]));
@@ -303,7 +303,7 @@ bool rcs::myTracker::DetectAndMatchImagePoints(featureType feature_s, cv::Mat im
 		{
 			fixedFramePoints.push_back(cv::Point2d(points1[i].x += initRect.x, points1[i].y += initRect.y));
 			currentFramePoints.push_back(cv::Point2d(points2[i].x += roiX, points2[i].y += roiY));
-			goodMatch_1.push_back(matches[i]);
+			betterMatch.push_back(matches[i]);
 		}
 	}
 	/*  
@@ -329,15 +329,14 @@ bool rcs::myTracker::DetectAndMatchImagePoints(featureType feature_s, cv::Mat im
 		}
 	}*/
 	/* 筛选后匹配点数 >= 8 */
-	if (goodMatch_1.size() < 8)
+	if (betterMatch.size() < 8)
 	{
 		log = "error: Frame " + to_string(frameNum) + ", Less than 8 good matched points.";
 		return 0;
 	}
 
 	/*筛选后匹配效果*/
-	//cv::drawMatches(img_0, feature1.keypoints, img_n, feature2.keypoints, goodMatch_1, matchImg, cv::Scalar::all(-1), cv::Scalar::all(-1), vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-	//cv::drawMatches(imgFixedFrame, feature1.keypoints, imgCurrentFrame, feature2.keypoints, goodMatch_1, matchImg, cv::Scalar::all(-1), cv::Scalar::all(-1), vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	cv::drawMatches(imgFixedFrame, feature1.keypoints, imgCurrentFrame, feature2.keypoints, betterMatch, matchImg, cv::Scalar::all(-1), cv::Scalar::all(-1), vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 	//cv::putText(matchImg, "Match points:" + to_string(goodMatch_1.size()), cv::Point(20, 40), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1.0);
 	//cv::putText(matchImg, "Frame:" + to_string(frameNum), cv::Point(20, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1.0);
 	//cv::imshow("goodMatchImage", matchImg);
