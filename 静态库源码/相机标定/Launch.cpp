@@ -51,7 +51,7 @@ void getFilesName(string& File_Directory, string& FileType, vector<string>& File
 
 void m_calibration(vector<string>& FilesName, Size board_size, Size square_size, Mat& cameraMatrix, Mat& distCoeffs, vector<Mat>& rvecsMat, vector<Mat>& tvecsMat)
 {
-
+	int point_count = board_size.height * board_size.width;
 	//cout << "开始提取角点………………" << endl;
 	int image_count = 0;                                            // 图像数量 
 	Size image_size;                                                // 图像的尺寸 
@@ -115,10 +115,10 @@ void m_calibration(vector<string>& FilesName, Size board_size, Size square_size,
 	}
 	cout << image_count << endl;
 	int rest = FilesName.size() - image_count;
-	if (rest > 0) {
-		ofstream ofs("./data/error.txt", ios::app);
-		ofs << "一共" << rest << "张图片" << endl;
-	}
+	//if (rest > 0) {
+	//	ofstream ofs("./data/error.txt", ios::app);
+	//	ofs << "一共" << rest << "张图片" << endl;
+	//}
 	if (image_count == 0) {
 		ofstream af("./data/all.txt");
 		af << "所有图片提取角点失败，请检查是否输入了正确的靶标大小" << endl;
@@ -163,16 +163,42 @@ void m_calibration(vector<string>& FilesName, Size board_size, Size square_size,
 			ans[j] = double(data[j]);
 	}
 
-	ofstream kout("./data/K.txt");                       // 保存内参矩阵的文件 	
-	ofstream dout("./data/distCoeffs.txt");                       // 保存内参矩阵的文件 	
+	ofstream kout("./data/K.txt");		// 保存内参矩阵的文件 	
+	ofstream dout("./data/distCoeffs.txt");		// 保存内参矩阵的文件 	
+	ofstream eout("./data/total_err.txt");		//保存平均误差
 	kout << setprecision(16);	
 	dout << setprecision(16);
+	eout << setprecision(8);
 
 	for (int i = 0; i < 3; i++)
 		for (int j = 0; j < 3; j++)
 			kout << m[i][j] << " ";
 	for (int i = 0; i < 5; i++)
 		dout << ans[i] << " ";
+
+	double total_err = 0.0;    // 总误差
+	double err = 0.0;    // 单张图片误差
+	vector<Point2f> img_point;    // 重新计算得到的投影点
+	for (int i = 0; i < image_count; i++)
+	{
+		vector<Point3f> tempPointSet = object_points_seq[i];
+		/* 通过得到的摄像机内外参数，对空间的三维点进行重新投影计算，得到新的投影点 */
+		projectPoints(tempPointSet, rvecsMat[i], tvecsMat[i], cameraMatrix, distCoeffs, img_point);
+		/* 计算新的投影点和旧的投影点之间的误差*/
+		vector<Point2f> tempImagePoint = image_points_seq[i];
+		Mat tempImagePointMat = Mat(1, tempImagePoint.size(), CV_32FC2);
+		Mat image_points2Mat = Mat(1, img_point.size(), CV_32FC2);
+
+		for (int j = 0; j < tempImagePoint.size(); j++)
+		{
+			image_points2Mat.at<Vec2f>(0, j) = Vec2f(img_point[j].x, img_point[j].y);
+			tempImagePointMat.at<Vec2f>(0, j) = Vec2f(tempImagePoint[j].x, tempImagePoint[j].y);
+		}
+		err = norm(image_points2Mat, tempImagePointMat, NORM_L2);
+		total_err += err /= point_count;
+	}
+	cout<<"总体平均误差"<<total_err/image_count<<endl;
+	eout<< total_err / image_count << endl;
 }
 
 
