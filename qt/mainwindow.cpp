@@ -112,7 +112,7 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
     QDir dir(path);
     dir.setFilter(QDir::Files | QDir::NoSymLinks);
     QStringList filter;
-    filter << "*.jpg";
+    filter << "*.jpg" << "*.png";
     dir.setNameFilters(filter);
     QStringList dl = dir.entryList();
     qDebug()<<dl;
@@ -136,6 +136,7 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
 
     QFile file("./data/K.txt");     //内参矩阵保存文件
     QFile file2("./data/distCoeffs.txt");     //畸变系数保存文件
+    QFile file3("./data/total_err.txt");
     if(f4.open(QIODevice::ReadOnly))
     {
         QMessageBox::critical(NULL, QString("出错了"),
@@ -157,16 +158,23 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
                               QString("确定"));
         flag1 = false;
     }
-    else if(f1.open(QIODevice::ReadOnly | QIODevice::Text))
+    else if(f1.open(QIODevice::ReadOnly))
     {
         QTextStream ein(&f1);
-        ein.setEncoding(QStringConverter::System);     //防止文件中的中文乱码
+//        ein.setEncoding(QStringConverter::System);     //防止文件中的中文乱码
+        QString eread = ein.readAll().replace("\r", " ");
+//        qDebug()<<eread;
+        QStringList el = eread.split(" \n");
         ui->text1->setText("提示：以下图片角点提取失败，请删除后重新标定！");
-        ui->text1->append(ein.readAll());
+//        ui->text1->append(ein.readAll());
+        for(int i = 0; i < el.length()-1; i++)
+            ui->text1->append(el[i]);
+        ui->text1->append("一共" + QString::number(el.length()-1) + "张图片\n");
         f1.close();
         ui->groupBox->show();     //显示隐藏按钮
     }
-    else if(!file.open(QIODevice::ReadOnly | QIODevice::Text) || !file2.open(QIODevice::ReadOnly | QIODevice::Text))
+    else if(!file.open(QIODevice::ReadOnly) || !file2.open(QIODevice::ReadOnly)
+            || !file3.open(QIODevice::ReadOnly))
     {
         QMessageBox::critical(NULL, QString("提示"),
                               QString("读取标定结果失败，请检查是否误删文件"),
@@ -181,6 +189,7 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
 
         QTextStream in(&file);     //展示内参信息
         QTextStream in2(&file2);
+        QTextStream in3(&file3);
         ui->text1->append("内参矩阵：");
         QStringList k = in.readAll().split(" ");
         ui->text1->append(k[0]+"  "+k[1]+"  "+k[2]);
@@ -191,8 +200,11 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
         ui->text1->append(dc[0]+"  "+dc[1]+"  "+dc[4]);
         ui->text1->append("切向畸变系数：");
         ui->text1->append(dc[2]+"  "+dc[3]);
+        ui->text1->append("总体平均误差：");
+        ui->text1->append(in3.readAll());
         file.close();
         file2.close();
+        file3.close();
 
 //        QString imgname("extrinsics.png");
 //        QImage image;
@@ -221,7 +233,8 @@ void MainWindow::on_hidetest_clicked()     //隐藏按钮，有部分图片角�
 
     QFile file("./data/K.txt");     //读取标定结果
     QFile file2("./data/distCoeffs.txt");     //读取标定结果
-    if(!file.open(QIODevice::ReadOnly) || !file2.open(QIODevice::ReadOnly))
+    QFile file3("./data/total_err.txt");
+    if(!file.open(QIODevice::ReadOnly) || !file2.open(QIODevice::ReadOnly) || !file3.open(QIODevice::ReadOnly))
     {
         QMessageBox::critical(NULL, QString("提示"),
                               QString("读取标定结果失败，请检查是否误删文件"),
@@ -236,6 +249,7 @@ void MainWindow::on_hidetest_clicked()     //隐藏按钮，有部分图片角�
 
         QTextStream in(&file);     //展示内参信息
         QTextStream in2(&file2);
+        QTextStream in3(&file3);
         ui->text1->append("内参矩阵：");
         QStringList k = in.readAll().split(" ");
         ui->text1->append(k[0]+"  "+k[1]+"  "+k[2]);
@@ -246,6 +260,8 @@ void MainWindow::on_hidetest_clicked()     //隐藏按钮，有部分图片角�
         ui->text1->append(dc[0]+"  "+dc[1]+"  "+dc[4]);
         ui->text1->append("切向畸变系数：");
         ui->text1->append(dc[2]+"  "+dc[3]);
+        ui->text1->append("总体平均误差：");
+        ui->text1->append(in3.readAll());
         file.close();
         file2.close();
 
@@ -699,7 +715,7 @@ void MainWindow::on_calcula_clicked()     //step2解算
         QMessageBox::warning(NULL, QString("提示"),
                              QString("选的点必须不少于6个"),
                              QString("确定"));
-//    else if(!f.open(QIODevice::ReadOnly | QIODevice::Text))
+//    else if(!f.open(QIODevice::ReadOnly))
 //            QMessageBox::critical(NULL, QString("提示"),
 //                                 QString("打开./data/log.txt文件失败"),
 //                                 QString("确定"));
@@ -739,7 +755,7 @@ void MainWindow::on_calcula_clicked()     //step2解算
                                   QString("确定"));
         else{
             rcs::validHCalculation(hname.toStdString(), H);     //保存H
-            if(!f2.open(QIODevice::ReadOnly | QIODevice::Text))
+            if(!f2.open(QIODevice::ReadOnly))
                 QMessageBox::critical(NULL, QString("提示"),
                                      QString("打开"+hname+"文件失败"),
                                      QString("确定"));
@@ -824,6 +840,7 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     cv::VideoCapture video = cv::VideoCapture(std::string(cdata));
 //    cv::VideoCapture video(0);
 
+
     cv::Mat frame;
 
     QString fname = "./data/"+Getfname(videopath)+ft+sm+"-"+tname+".txt";
@@ -886,6 +903,8 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     QWidget *m_widget = QWidget::createWindowContainer(mw, this, Qt::Widget);
     ui->verticalLayout->setContentsMargins(1, 1, 1, 1);
     ui->verticalLayout->addWidget(m_widget);
+
+    flagtrack = true;
 
 //    rcs::myTracker track(ttype, ftype, smethod);
     while(1){
@@ -1118,7 +1137,7 @@ void MainWindow::on_track_clicked()     //step3追踪
     cv::Mat distCoeffs = GetMat("./data/distCoeffs.txt", 1, 5);
 
     track(H, K, distCoeffs, ttype, ftype, smethod);
-    flagtrack = true;
+
 }
 
 
@@ -1148,7 +1167,7 @@ void MainWindow::on_three2two_clicked()     //step3到step2
 }
 
 
-void MainWindow::on_three2four_clicked()     //step3到step4
+void MainWindow::on_three2four_clicked()     //完成
 {
     if(!flagtrack)
         QMessageBox::warning(NULL, QString("提示"),
