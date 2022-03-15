@@ -10,8 +10,8 @@ MainWindow::MainWindow(QWidget *parent)
     setFixedSize(this->width(),this->height());
     ui->groupBox->hide();     //隐藏按钮
     ui->s3hide->hide();     //隐藏标签
-    ui->tabWidget->tabBar()->hide();     //隐藏tab
-//    ui->tabWidget->setCurrentIndex(0);     //默认第一页
+//    ui->tabWidget->tabBar()->hide();     //隐藏tab
+    ui->tabWidget->setCurrentIndex(0);     //默认第一页
     /*第三步默认选择pnp、orb和kcf,四元数*/
     ui->pnp->setChecked(true);
     ui->orb->setChecked(true);
@@ -130,6 +130,7 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
     int row = ui->in_row->text().toInt();
     int d= ui->in_d->text().toInt();
     imgpath = QFileDialog::getExistingDirectory(this, "选择文件夹", "/");
+    if(imgpath.isEmpty()) return;
     QByteArray cdata = imgpath.toLocal8Bit();     //防止中文在QString转std::string时乱码
     calib(std::string(cdata), row, col, d);     //相机标定静态库的方法
 
@@ -199,8 +200,8 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
         ui->text1->append("径向畸变系数：");
         ui->text1->append(dc[0]+"  "+dc[1]+"  "+dc[4]);
         ui->text1->append("切向畸变系数：");
-        ui->text1->append(dc[2]+"  "+dc[3]);
-        ui->text1->append("总体平均误差：");
+        ui->text1->append(dc[2]+"  "+dc[3]+"\n");
+        in3.setEncoding(QStringConverter::System);
         ui->text1->append(in3.readAll());
         file.close();
         file2.close();
@@ -259,8 +260,8 @@ void MainWindow::on_hidetest_clicked()     //隐藏按钮，有部分图片角�
         ui->text1->append("径向畸变系数：");
         ui->text1->append(dc[0]+"  "+dc[1]+"  "+dc[4]);
         ui->text1->append("切向畸变系数：");
-        ui->text1->append(dc[2]+"  "+dc[3]);
-        ui->text1->append("总体平均误差：");
+        ui->text1->append(dc[2]+"  "+dc[3]+"\n");
+        in3.setEncoding(QStringConverter::System);
         ui->text1->append(in3.readAll());
         file.close();
         file2.close();
@@ -383,6 +384,7 @@ void MainWindow::on_chosepic_clicked()     //step2选择图片
                         this, "选择文件",
                         path,
                         "图片文件 (*.jpg *.png);; 所有文件 (*.*)");
+        if(s.isEmpty()) return;
         QImage img(s);
         piclist.append(s);
         sc = new ImageScene();     //使用重写的类来读取图片，实现点击图片获得图片像素坐标
@@ -438,6 +440,7 @@ void MainWindow::on_chosevideo_clicked()     //step2选择视频文件
                         this, "选择文件",
                         "/",
                         "视频文件 (*.mp4 *.avi *.mkv);; 所有文件 (*.*)");
+        if(videopath.isEmpty()) return;
         QByteArray cdata = videopath.toLocal8Bit();
         cv::VideoCapture video = cv::VideoCapture(std::string(cdata));
         cv::Mat frame1;
@@ -597,7 +600,7 @@ void ImageItem::mousePressEvent(QGraphicsSceneMouseEvent* event)     //监听鼠
 
 void MainWindow::on_back_clicked()     //撤销选取的点
 {
-    int t = num;
+//    int t = num;
     num--;
 //    QFile f2("./data/log.txt");
     if(num < 0){
@@ -835,7 +838,8 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
                        rcs::trackerType ttype, rcs::featureType ftype, rcs::solveMethod smethod)
 {
     if(videopath.isEmpty())
-        videopath = QFileDialog::getOpenFileName(this, "选择文件", "/", "视频文件 (*.mp4 *.avi *.mkv);; 所有文件 (*.*);; ");
+        videopath = QFileDialog::getOpenFileName(this, "选择文件", "/", "视频文件 (*.mp4 *.avi *.mkv);; 所有文件 (*.*)");
+    if(videopath.isEmpty()) return;
     QByteArray cdata = videopath.toLocal8Bit();
     cv::VideoCapture video = cv::VideoCapture(std::string(cdata));
 //    cv::VideoCapture video(0);
