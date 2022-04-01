@@ -10,6 +10,7 @@
 #include <QRegularExpression>
 #include <QTabBar>
 #include <QStyleFactory>
+#include <QCloseEvent>
 
 #include <cmath>
 
@@ -42,6 +43,7 @@ public:
     cv::Mat GetMat(QString file, int x, int y);
     void track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs, rcs::trackerType ttype,
                rcs::featureType ftype, rcs::solveMethod smethod);
+    void closeEvent(QCloseEvent *e);
     ~MainWindow();
 
 private slots:

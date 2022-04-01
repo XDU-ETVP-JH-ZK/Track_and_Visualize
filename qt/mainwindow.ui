@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>1195</width>
-    <height>804</height>
+    <height>809</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -56,7 +56,7 @@ QTabBar::tab{height:40}</string>
      <enum>QTabWidget::Rounded</enum>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>0</number>
     </property>
     <property name="iconSize">
      <size>
@@ -250,7 +250,7 @@ border-color: rgb(0, 0, 0);</string>
      <widget class="QGroupBox" name="groupBox">
       <property name="geometry">
        <rect>
-        <x>930</x>
+        <x>910</x>
         <y>150</y>
         <width>120</width>
         <height>80</height>
@@ -265,7 +265,7 @@ border-color: rgb(0, 0, 0);</string>
       <widget class="QPushButton" name="hidetest">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>30</y>
          <width>91</width>
          <height>41</height>
@@ -1151,7 +1151,7 @@ border-style: solid;
          <x>0</x>
          <y>0</y>
          <width>851</width>
-         <height>651</height>
+         <height>541</height>
         </rect>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout"/>

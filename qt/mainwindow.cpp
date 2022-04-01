@@ -1,6 +1,10 @@
 ﻿#include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_cloud.h>
+#include <pcl/visualization/pcl_visualizer.h>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -46,6 +50,16 @@ int n = 0;     //step2点数量
 double m[3][2];     //step2画出的3个点
 std::vector<std::vector<float>> pose;     //保存每帧的r和t
 QString ft, sm;     //所选的特征提取和位姿解算算法
+
+
+void MainWindow::closeEvent(QCloseEvent *e)
+{
+    int r = QMessageBox::information(this, "退出", "是否退出?", QObject::tr("确认"), QObject::tr("取消"));
+    if(r == QObject::tr("确认").toInt())
+        this->close();
+    else
+        e->ignore();
+}
 
 
 /////////////////////////////////////////////////////////////step1/////////////////////////////////////////////////////////////
@@ -201,7 +215,7 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
         ui->text1->append(dc[0]+"  "+dc[1]+"  "+dc[4]);
         ui->text1->append("切向畸变系数：");
         ui->text1->append(dc[2]+"  "+dc[3]+"\n");
-        in3.setEncoding(QStringConverter::System);
+//        in3.setEncoding(QStringConverter::System);
         ui->text1->append(in3.readAll());
         file.close();
         file2.close();
@@ -251,7 +265,7 @@ void MainWindow::on_hidetest_clicked()     //隐藏按钮，有部分图片角�
         QTextStream in(&file);     //展示内参信息
         QTextStream in2(&file2);
         QTextStream in3(&file3);
-        ui->text1->append("内参矩阵：");
+        ui->text1->setText("内参矩阵：");
         QStringList k = in.readAll().split(" ");
         ui->text1->append(k[0]+"  "+k[1]+"  "+k[2]);
         ui->text1->append(k[3]+"  "+k[4]+"  "+k[5]);
@@ -271,6 +285,7 @@ void MainWindow::on_hidetest_clicked()     //隐藏按钮，有部分图片角�
         img.load(iname);
         recvShowPicSignal(img, ui->imgview);     //展示标定后图片，可以缩放拖拽
         flag1 = true;
+        ui->groupBox->hide();
     }
 }
 
@@ -844,6 +859,13 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     cv::VideoCapture video = cv::VideoCapture(std::string(cdata));
 //    cv::VideoCapture video(0);
 
+    pcl::PointCloud<pcl::PointXYZ>::Ptr head(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::io::loadPCDFile<pcl::PointXYZ>("head.pcd", *head);
+
+    if(head->size() == 0){
+        QMessageBox::critical(this, "错误", "模型文件打开失败，请确认模型文件路径是否正确", "确定");
+        return;
+    }
 
     cv::Mat frame;
 
@@ -879,7 +901,7 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     pangolin::CreateWindowAndBind("Pangolin_Track", 1024, 768);     //pangolin初始化
     glEnable(GL_DEPTH_TEST);
     pangolin::OpenGlRenderState s_cam(
-        pangolin::ProjectionMatrix(1024, 768, fx, fy, cx, cy, 0.2, 2000),
+        pangolin::ProjectionMatrix(1024, 768, fx, fy, cx, cy, 0.02, 2000),
         pangolin::ModelViewLookAt(t[0], t[1], t[2], 0, 0, 0, pangolin::AxisY)
     );
     pangolin::Handler3D handler(s_cam);
@@ -928,13 +950,21 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
                 pose_t.push_back(rMat(0, 0));pose_t.push_back(rMat(1, 0));pose_t.push_back(rMat(2, 0));
                 pose_t.push_back(rMat(0, 1));pose_t.push_back(rMat(1, 1));pose_t.push_back(rMat(2, 1));
                 pose_t.push_back(rMat(0, 2));pose_t.push_back(rMat(1, 2));pose_t.push_back(rMat(2, 2));
-                pose_t.push_back(tVec[0]);pose_t.push_back(tVec[1]);pose_t.push_back(tVec[2]);
+                pose_t.push_back(tVec[0] - 10);pose_t.push_back(tVec[1] + 10);pose_t.push_back(tVec[2] - 500);
                 pose.push_back(pose_t);
                 pose_t.clear();
 
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
                 d_cam.Activate(s_cam);
                 glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+                glPointSize(2);
+                glBegin(GL_POINTS);
+                for (int i = 0; i < head->size(); i++) {
+                    glColor3f(0, 1, 0);
+                    glVertex3d(head->points[i].x, head->points[i].y, head->points[i].z);
+                }
+                glEnd();
 
                 int k = 0;
                 for(k = 0; k < pose.size();k++){
@@ -953,7 +983,7 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
                         glVertex3f(0, 0, 0);		glVertex3f(0, 0.2, 0);
                         glColor3f(0.f, 0.f, 1.0f);
                         glVertex3f(0, 0, 0);		glVertex3f(0, 0, 0.1);
-                        glColor3f(0.f, 1.f, 1.f);
+                        glColor3f(1.f, 0.f, 1.f);
                         glVertex3f(0, 0, 0);		glVertex3f(0.1, 0.2, 0);
                         glVertex3f(0.1, 0, 0);		glVertex3f(0, 0.2, 0);
                         glVertex3f(0, 0.2, 0);		glVertex3f(0.1, 0.2, 0);
@@ -1000,6 +1030,7 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
                 QString t = QString::number(tVec[0])+" "+QString::number(tVec[1])+" "+QString::number(tVec[2]);
                 rtf.open(QIODevice::WriteOnly | QIODevice::Append);
                 QTextStream rtin(&rtf);
+//                rtin<<t<<"\n";
                 if(tname == "q")
                     rtin<<t<<" "<<q<<"\n";
                 else if(tname == "r")
@@ -1050,6 +1081,14 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
             d_cam.Activate(s_cam);
             glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
+            glPointSize(2);
+            glBegin(GL_POINTS);
+            for (int i = 0; i < head->size(); i++) {
+                glColor3f(0, 1, 0);
+                glVertex3d(head->points[i].x, head->points[i].y, head->points[i].z);
+            }
+            glEnd();
+
             int k = 0;
             for(k = 0; k < pose.size();k++){
                 glPushMatrix();
@@ -1067,7 +1106,7 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
                     glVertex3f(0, 0, 0);		glVertex3f(0, 0.2, 0);
                     glColor3f(0.f, 0.f, 1.0f);
                     glVertex3f(0, 0, 0);		glVertex3f(0, 0, 0.1);
-                    glColor3f(0.f, 1.f, 1.f);
+                    glColor3f(1.f, 0.f, 1.f);
                     glVertex3f(0, 0, 0);		glVertex3f(0.1, 0.2, 0);
                     glVertex3f(0.1, 0, 0);		glVertex3f(0, 0.2, 0);
                     glVertex3f(0, 0.2, 0);		glVertex3f(0.1, 0.2, 0);
