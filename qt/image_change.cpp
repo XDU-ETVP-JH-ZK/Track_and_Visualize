@@ -14,12 +14,12 @@ QString Images_Change::NextImage(QStringList list){
     index++;
     if(index>=n)    //图片显示完后，就把index归0，重新开始显示第一张图片
         index=0;
-    return("./data/"+list[index]);  //返回图片的路径
+    return(list[index]);  //返回图片的路径
 }
 QString Images_Change::PreImage(QStringList list){
     int n = list.size();
     index--;
     if(index<=0)    //图片显示完后，就把index归n-1，显示最后一张图片
         index=n-1;
-    return("./data/"+list[index]);  //返回图片的路径
+    return(list[index]);  //返回图片的路径
 }

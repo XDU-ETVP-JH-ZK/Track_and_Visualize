@@ -11,6 +11,7 @@
 #include <QTabBar>
 #include <QStyleFactory>
 #include <QCloseEvent>
+#include <QTimer>
 
 #include <cmath>
 
@@ -38,36 +39,28 @@ public:
     void showpic(QImage pic, QGraphicsView *view);
     void LabelDisplayMat(QLabel *label, cv::Mat &mat);
     Eigen::Matrix3d GetMatrix(QString file);
+    cv::Mat GetMat(QString file, int x, int y);
     double x2y(cv::Point2d x, cv::Point2d y);
     bool online(std::vector<cv::Point2d> w);
-    cv::Mat GetMat(QString file, int x, int y);
     void track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs, rcs::trackerType ttype,
                rcs::featureType ftype, rcs::solveMethod smethod);
     void closeEvent(QCloseEvent *e);
     ~MainWindow();
 
 private slots:
-    void on_one2two_clicked();
-
     void on_calib_clicked();
 
     void on_pushButton_3_clicked();
 
     void on_pushButton_2_clicked();
 
-    void on_two2three_clicked();
-
-    void on_three2four_clicked();
-
     void on_s2run_clicked();
 
-    void on_chosepic_clicked();
+    void on_loadcamera_clicked();
 
-    void on_back_clicked();
+//    void on_back_clicked();
 
     void on_track_clicked();
-
-    void on_hidetest_clicked();
 
     void on_calcula_clicked();
 
@@ -75,20 +68,44 @@ private slots:
 
     void on_in_col_returnPressed();
 
-    void on_in_x_editingFinished();
-
-    void on_in_y_returnPressed();
-
-    void on_two2one_clicked();
-
-    void on_three2two_clicked();
-
     void on_in_d_editingFinished();
 
     void on_chosevideo_clicked();
 
+    void on_s1loadpic_clicked();
+
+    void on_point_clicked();
+    void on_point_2_clicked();
+    void on_point_3_clicked();
+    void on_point_4_clicked();
+    void on_point_5_clicked();
+    void on_point_6_clicked();
+
+    void on_point_x_editingFinished();
+    void on_point_y_returnPressed();
+    void on_point_x_2_editingFinished();
+    void on_point_y_2_returnPressed();
+    void on_point_x_3_editingFinished();
+    void on_point_y_3_returnPressed();
+    void on_point_x_4_editingFinished();
+    void on_point_y_4_returnPressed();
+    void on_point_x_5_editingFinished();
+    void on_point_y_5_returnPressed();
+    void on_point_x_6_editingFinished();
+    void on_point_y_6_returnPressed();
+
+    void on_freeze_clicked();
+
+    void on_LoadModel_clicked();
+
+    void on_ModelUnload_clicked();
+
+
 private:
     Ui::MainWindow *ui;
     ImageWidget *m_Image;
+    QList<QVector3D> normal;
+    QList<QVector3D> vertex;
+    QTimer* timer;
 };
 #endif // MAINWINDOW_H
