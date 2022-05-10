@@ -12,6 +12,7 @@
 #include <QStyleFactory>
 #include <QCloseEvent>
 #include <QTimer>
+#include <QDateTime>
 
 #include <cmath>
 
@@ -74,12 +75,12 @@ private slots:
 
     void on_s1loadpic_clicked();
 
-    void on_point_clicked();
-    void on_point_2_clicked();
-    void on_point_3_clicked();
-    void on_point_4_clicked();
-    void on_point_5_clicked();
-    void on_point_6_clicked();
+//    void on_point_clicked();
+//    void on_point_2_clicked();
+//    void on_point_3_clicked();
+//    void on_point_4_clicked();
+//    void on_point_5_clicked();
+//    void on_point_6_clicked();
 
     void on_point_x_editingFinished();
     void on_point_y_returnPressed();
@@ -100,6 +101,8 @@ private slots:
 
     void on_ModelUnload_clicked();
 
+    void on_in_d_2_editingFinished();
+
 
 private:
     Ui::MainWindow *ui;
@@ -107,5 +110,10 @@ private:
     QList<QVector3D> normal;
     QList<QVector3D> vertex;
     QTimer* timer;
+
+    QStringList GetImgList(QString path);        //获取指定路径下的图片列表
+    void add(QLineEdit *in1, QLineEdit *in2, int num);
+    void TypeCheck(QLineEdit *le, QRegularExpression rx, QString readme);
+
 };
 #endif // MAINWINDOW_H
