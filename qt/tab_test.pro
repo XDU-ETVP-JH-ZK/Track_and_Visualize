@@ -12,20 +12,24 @@ CONFIG += c++11
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    calib_thread.cpp \
     image_change.cpp \
     imageitem.cpp \
     imagescene.cpp \
     imagewidget.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    model_thread.cpp
 
 HEADERS += \
     Launch.h \
+    calib_thread.h \
     image_change.h \
     imageitem.h \
     imagescene.h \
     imagewidget.h \
     mainwindow.h \
+    model_thread.h \
     pangolin_lib.h \
     reconstruction.h
 

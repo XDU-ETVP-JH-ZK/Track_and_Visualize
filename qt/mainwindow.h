@@ -23,6 +23,8 @@
 #include "imagescene.h"
 #include "Launch.h"
 #include "reconstruction.h"
+#include "model_thread.h"
+#include "calib_thread.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -49,21 +51,23 @@ public:
     ~MainWindow();
 
 private slots:
+    void load_model_succeed();
+
+    void cursor_changeback();
+
     void on_calib_clicked();
 
     void on_pushButton_3_clicked();
 
     void on_pushButton_2_clicked();
 
-    void on_s2run_clicked();
+//    void on_s2run_clicked();
 
     void on_loadcamera_clicked();
 
 //    void on_back_clicked();
 
     void on_track_clicked();
-
-    void on_calcula_clicked();
 
     void on_in_row_editingFinished();
 
@@ -107,13 +111,17 @@ private slots:
 private:
     Ui::MainWindow *ui;
     ImageWidget *m_Image;
-    QList<QVector3D> normal;
-    QList<QVector3D> vertex;
+//    QList<QVector3D> normal;
+//    QList<QVector3D> vertex;
     QTimer* timer;
 
     QStringList GetImgList(QString path);        //获取指定路径下的图片列表
     void add(QLineEdit *in1, QLineEdit *in2, int num);
     void TypeCheck(QLineEdit *le, QRegularExpression rx, QString readme);
+    void hcalcula();
+
+signals:
+    void change();
 
 };
 #endif // MAINWINDOW_H
