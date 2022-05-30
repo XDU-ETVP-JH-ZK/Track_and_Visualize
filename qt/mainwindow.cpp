@@ -6,42 +6,46 @@
 //#include <pcl/point_cloud.h>
 //#include <pcl/visualization/pcl_visualizer.h>
 
-
 QRegularExpression reg("^[0-9]*[1-9][0-9]*$");     //正整数正则表达式
 QRegularExpression reg2("^\\d+$");     //非负整数正则表达式
 QRegularExpression reg3("^\\d+(\\.\\d+)?$");     //正数
-bool flag1 = false;     //step1是否完成标定
-bool flag2 = false;     //step2是否选取图片
-bool choseflag = false;     //step2是否已选择三个点
-bool flagtrack = false;     //step3是否开始追踪
-bool modelload = false;
 
-int pointnum;       //特征点编号
+//QList<QCameraInfo> cameras;
+QList<QCameraDevice> cameras;
+int cid;
+bool choseflag = false;     //step2是否已选择三个点
+bool modelload = false;     //是否加载模型
 QList<QStringList> pointslist;      //特征点物理坐标和像素坐标列表
 QStandardItemModel* model;
-int num[6] = {0};     //step2中选取点的个数
 int videos = 0;     //视频源,1:摄像头,2:本地视频
 Eigen::Matrix3d H;      //单应矩阵
-
 QStringList list;     //step1中切换图片列表
 QString imgpath;     //step1选取的路径
 QString videopath;     //step2选取的视频路径
 std::vector<double> plist;      //每个手动选取角点的像素坐标
-QStringList piclist;    //step2中做上标记的图片列表
-
-QList<QVector3D> normal;
-QList<QVector3D> vertex;
-
-QString somename;
+int pnum = 0;       //已录入特征点个数
+QList<QVector3D> normal;        //模型法线数据
+QList<QVector3D> vertex;        //模型坐标数据
+QString somename;       //结果文件命名
 QString hname;     //解算出的H的文件名
-QString rtname;     //追踪匹配到的数据文件名
 QString tname;     //保存数据格式：四元数或选择矩阵
 ImageScene *sc;     //step2画点的scene
-int n = 0;     //step2点数量
-double m[3][2];     //step2画出的3个点
 std::vector<std::vector<float>> pose;     //保存每帧的r和t
 QString ft, sm;     //所选的特征提取和位姿解算算法
+rcs::trackerType ttype;     //追踪器类型
+rcs::featureType ftype;     //特征提取算法
+rcs::solveMethod smethod;       //位姿解算算法
+cv::Mat pglFrame;       //视频图像帧
+QImage matchimg;        //匹配图像
+Eigen::Matrix3d rMat;       //位姿-旋转矩阵
+Eigen::Vector3d tVec;       //位姿-平移向量
+double cur_t;       //当前t的模
+QString errlog;     //错误日志
+WId pglwid;     //pangolin窗口句柄
+QString lend;       //日志末尾
+QString logname, resultname;        //日志文件名，结果文件名
 
+PangolinThread *pt;     //pangolin子线程
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -49,74 +53,93 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-//    setFixedSize(this->width(),this->height());
+    this->init();
+    this->fileinit();
+    this->camerainit();
+    this->tableinit();
+
+//    ModelThread *thread1 = new ModelThread();
+//    thread1->start();
+//    connect(thread1, SIGNAL(succeed()), this, SLOT(load_model_succeed()));
+
+    win2 = new WinFocus(this);
+    win3 = new SlamWindow(this);
+}
+
+
+void MainWindow::init()
+{
+    ui->groupBox->hide();
     ui->groupBox_2->hide();
     ui->modelbox->hide();
     ui->s3hide->hide();     //隐藏标签
-//    ui->tabWidget->tabBar()->hide();     //隐藏tab
     ui->tabWidget->setCurrentIndex(0);     //默认第一页
     /*第三步默认选择pnp、orb和kcf,四元数*/
     ui->pnp->setChecked(true);
     ui->orb->setChecked(true);
     ui->kcf->setChecked(true);
     ui->quat->setChecked(true);
+    ui->video->setChecked(true);
+}
 
-    pointslist.push_back({"0", "0", "0", "0"});pointslist.push_back({"0", "0", "0", "0"});
-    pointslist.push_back({"0", "0", "0", "0"});pointslist.push_back({"0", "0", "0", "0"});
-    pointslist.push_back({"0", "0", "0", "0"});pointslist.push_back({"0", "0", "0", "0"});
 
-    model = new QStandardItemModel();
-    model->setHorizontalHeaderLabels({"物理坐标", "像素坐标"});
-    model->setVerticalHeaderLabels({"特征点1","特征点2","特征点3","特征点4","特征点5","特征点6"});
-
-    ui->tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    ui->tableView->verticalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-
-    ui->tableView->setModel(model);
-    ui->tableView->show();
-
-    QString root = QDir::currentPath() + "/data/";
+void MainWindow::fileinit()
+{
+    QString root = QDir::currentPath() + "/data/";      //新建数据文件夹
     QStringList pathlist;
     pathlist.push_back(root);
     pathlist.push_back(root + "相机标定/");
     pathlist.push_back(root + "初始解算/");
     pathlist.push_back(root + "导航定位/");
+    pathlist.push_back(root + "自身位姿估计/");
+    pathlist.push_back(root + "病灶检测/");
     for(auto & i : pathlist){
         QDir d(i);
         if(!d.exists())
             d.mkdir(i);
     }
+}
 
-    ModelThread *thread1 = new ModelThread();
-    thread1->start();
-    connect(thread1, SIGNAL(succeed()), this, SLOT(load_model_succeed()));
 
-//  加载模型
-//    QFile stl("1.stl");
-//    int ok = stl.open(QIODevice::ReadOnly);
-//    if(!ok){
-//        QMessageBox::critical(this, "错误", "读取模型文件失败", "确定");
-//        return;
-//    }
+void MainWindow::camerainit()
+{
+//    cameras = QCameraInfo::availableCameras();
+    cameras = QMediaDevices::videoInputs();
+    for(auto &i : cameras)
+        ui->cameraid->addItem(i.description());
+}
 
-//    while(!stl.atEnd()){
-//        QString line = stl.readLine().trimmed();
-//        QStringList word = line.split(" ", Qt::SkipEmptyParts);
-//        if(word[0] == "facet")
-//            normal.append(QVector3D(word[2].toFloat(), word[3].toFloat(), word[4].toFloat()));
-//        if(word[0] == "vertex")
-//            vertex.append(QVector3D(word[1].toFloat(), word[2].toFloat(), word[3].toFloat()));
-//    }
+
+void MainWindow::on_cameraid_activated(int index)
+{
+    cid = index;
+}
+
+
+void MainWindow::tableinit()
+{
+    pointslist.push_back({"0", "0", "0", "0"});pointslist.push_back({"0", "0", "0", "0"});
+    pointslist.push_back({"0", "0", "0", "0"});pointslist.push_back({"0", "0", "0", "0"});
+    pointslist.push_back({"0", "0", "0", "0"});pointslist.push_back({"0", "0", "0", "0"});
+    model = new QStandardItemModel();
+    model->setHorizontalHeaderLabels({"物理坐标", "像素坐标"});
+    model->setVerticalHeaderLabels({"特征点1","特征点2","特征点3","特征点4","特征点5","特征点6"});
+    ui->tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    ui->tableView->verticalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    ui->tableView->horizontalHeader()->setStretchLastSection(true);
+    ui->tableView->setModel(model);
+    ui->tableView->show();
 }
 
 
 void ModelThread::run()
 {
     QFile f("1.stl");
-    if(!f.open(QIODevice::ReadOnly)){
-        QMessageBox::critical(NULL, "", "", "");
+    if(!f.exists()){
+        QMessageBox::critical(NULL, "错误", "没找到模型文件", "确定");
         return;
     }
+    f.open(QIODevice::ReadOnly);
     while(!f.atEnd()){
         QString line = f.readLine().trimmed();
         QStringList word = line.split(" ", Qt::SkipEmptyParts);
@@ -161,14 +184,15 @@ void MainWindow::TypeCheck(QLineEdit *le, QRegularExpression rx, QString readme)
     }
 }
 
-/////////////////////////////////////////////////////////////step1/////////////////////////////////////////////////////////////
-std::string PathWithCHN(QString path)
+/***********************************************************相机标定*****************************************************************/
+
+std::string PathWithCHN(QString path)       //中文路径转码
 {
     QByteArray cdata = path.toLocal8Bit();
     return std::string(cdata);
 }
 
-QStringList MainWindow::GetImgList(QString path)
+QStringList MainWindow::GetImgList(QString path)        //获取指定路径下的图片列表
 {
     QDir dir(path);
     QStringList filter, dl, res;
@@ -247,25 +271,21 @@ void MainWindow::on_s1loadpic_clicked()     //加载标定图片
 //    QImage img(picture1);
 //    recvShowPicSignal(img, ui->imgview);
     imgpath = QFileDialog::getExistingDirectory(this, "选择文件夹", "/");
+    if(imgpath.isEmpty())
+        return;
+
     list = GetImgList(imgpath);
     if(list.isEmpty()){
         QMessageBox::critical(NULL, "错误", "路径下没有图片，请确认是否输入了正确的路径", "确定");
         return;
     }
+
     QImage img(list[0]);
     recvShowPicSignal(img, ui->imgview);
 }
 
 
-int calib_x, calib_y, calib_d;
-void CalibThread::run()
-{
-    QString a;
-    calib(PathWithCHN(imgpath), calib_x, calib_y, calib_d);
-    emit completed();
-}
-
-
+int calib_x, calib_y, calib_d;      //靶标信息
 void MainWindow::on_calib_clicked()     //相机标定并展示结果
 {
     if(ui->in_col->text().isEmpty() || ui->in_row->text().isEmpty() || ui->in_d->text().isEmpty()){
@@ -277,7 +297,7 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
         return;
     }
 
-    QString path = QDir::currentPath() + "/data/相机标定/";
+    QString path = QDir::currentPath() + "/data/相机标定/";     //删除之前的标定结果
     QDir dir(path);
     if(!dir.isEmpty())
         dir.removeRecursively();
@@ -290,192 +310,24 @@ void MainWindow::on_calib_clicked()     //相机标定并展示结果
     calib_d = ui->in_d->text().toInt();
     calib_x = ui->in_col->text().toInt();
     calib_y = ui->in_row->text().toInt();
-//    int d = ui->in_d->text().toInt();
-//    int col = ui->in_col->text().toInt();
-//    int row = ui->in_row->text().toInt();
-//    calib(PathWithCHN(imgpath), row, col, d);
 
-    CalibThread *thread2 = new CalibThread();
+    CalibThread *thread2 = new CalibThread();       //标定子线程
     thread2->start();
-    connect(thread2, SIGNAL(completed()), this, SLOT(cursor_changeback()));
-
-//    QFile fk("./data/K.txt");     //内参矩阵保存文件
-//    QFile fd("./data/distCoeffs.txt");     //畸变系数保存文件
-//    QFile fe("./data/相机标定/total_err.txt");       //标定平均误差
-//    QFile error("./data/相机标定/error.txt");
-//    QFile all("./data/相机标定/all.txt");
-//    QFile dif("./data/相机标定/diff.txt");
-
-//    if(all.exists()){
-//        QMessageBox::critical(NULL, "错误", "所有图片提取角点均失败，请检查是否输入了正确的靶标信息", "确定");
-//        return;
-//    }
-//    if(dif.exists()){
-//        QMessageBox::critical(NULL, "错误", "存在不同分辨率的图片，标定失败", "确定");
-//        return;
-//    }
-//    if(error.exists()){
-//        error.open(QIODevice::ReadOnly);
-//        QTextStream in(&error);
-//        QStringList t = in.readAll().replace("\r", "").split("\n");
-//        error.close();
-//        ui->text1->setText("提示，以下图片角点提取失败：");
-//        for(auto & i : t)
-//            if(!i.isEmpty())
-//                ui->text1->append(i);
-//        ui->text1->append("一共" + QString::number(t.size()-1) + "张图片\n");
-//    }
-//    list = GetImgList(path);
-
-//    fk.open(QIODevice::ReadOnly);
-//    fd.open(QIODevice::ReadOnly);
-//    fe.open(QIODevice::ReadOnly);
-//    QTextStream kin(&fk), din(&fd), ein(&fe);
-//    ui->text1->append("内参矩阵：");
-//    QStringList k = kin.readAll().split(" ");
-//    ui->text1->append(k[0] + " " + k[1] + " " + k[2]);
-//    ui->text1->append(k[3] + " " + k[4] + " " + k[5]);
-//    ui->text1->append(k[6] + " " + k[7] + " " + k[8]);
-//    QStringList dc = din.readAll().split(" ");
-//    ui->text1->append("径向畸变系数：");
-//    ui->text1->append(dc[0]+"  "+dc[1]+"  "+dc[4]);
-//    ui->text1->append("切向畸变系数：");
-//    ui->text1->append(dc[2]+"  "+dc[3]+"\n");
-//    ui->text1->append("总体平均误差：" + ein.readAll() + "像素");
-//    fk.close();
-//    fd.close();
-//    fe.close();
-
-//    QImage img(list[0]);
-//    recvShowPicSignal(img, ui->imgview);
-
-//    QFile f1, f2, f3, f4;     //相机标定各种情况
-//    f1.setFileName("./data/error.txt");     //存在图片角点提取失败
-//    f2.setFileName("./data/all.txt");     //所有图片角点提取失败
-//    f3.setFileName("./data/no.txt");     //不存在图片
-//    f4.setFileName("./data/diff.txt");     //图片分辨率不同
-//    QString path = QDir::currentPath()+"/data/";     //删除data文件夹下所有jpg文件
-//    qDebug()<<path;
-//    QDir dir(path);
-//    dir.setFilter(QDir::Files | QDir::NoSymLinks);
-//    QStringList filter;
-//    filter << "*.jpg" << "*.png";
-//    dir.setNameFilters(filter);
-//    QStringList dl = dir.entryList();
-//    qDebug()<<dl;
-//    for(int i = 0; i < dl.size(); i++){
-//        QFile ft(path+dl[i]);
-//        ft.remove();
-//    }
-//    /*删除data文件夹下所有jpg文件*/
-//    if(f1.exists()) f1.remove();
-//    if(f2.exists()) f2.remove();
-//    if(f3.exists()) f3.remove();
-//    if(f4.exists()) f4.remove();
-
-//    int col = ui->in_col->text().toInt();
-//    int row = ui->in_row->text().toInt();
-//    int d= ui->in_d->text().toInt();
-////    imgpath = QFileDialog::getExistingDirectory(this, "选择文件夹", "/");
-////    if(imgpath.isEmpty()) return;
-//    QByteArray cdata = imgpath.toLocal8Bit();     //防止中文在QString转std::string时乱码
-//    calib(std::string(cdata), row, col, d);     //相机标定静态库的方法
-
-
-//    QFile file("./data/K.txt");     //内参矩阵保存文件
-//    QFile file2("./data/distCoeffs.txt");     //畸变系数保存文件
-//    QFile file3("./data/total_err.txt");
-//    if(f1.open(QIODevice::ReadOnly))
-//    {
-//        QTextStream ein(&f1);
-////        ein.setEncoding(QStringConverter::System);     //防止文件中的中文乱码
-//        QString eread = ein.readAll().replace("\r", " ");
-////        qDebug()<<eread;
-//        QStringList el = eread.split(" \n");
-//        ui->text1->setText("提示：以下图片角点提取失败");
-////        ui->text1->append(ein.readAll());
-//        for(int i = 0; i < el.length()-1; i++)
-//            ui->text1->append(el[i]);
-//        ui->text1->append("一共" + QString::number(el.length()-1) + "张图片\n");
-//        f1.close();
-////        ui->groupBox->show();     //显示隐藏按钮
-//    }
-//    if(f4.open(QIODevice::ReadOnly))
-//    {
-//        QMessageBox::critical(NULL, QString("出错了"),
-//                              QString("存在不同分辨率的图片，请删除后重新标定"),
-//                              QString("确定"));
-////        flag1 = false;
-//    }
-//    else if(f3.open(QIODevice::ReadOnly))
-//    {
-//        QMessageBox::critical(NULL, QString("出错了"),
-//                              QString("目录下不存在图片文件，请确认是否输入了正确的路径"),
-//                              QString("确定"));
-////        flag1 = false;
-//    }
-//    else if(f2.open(QIODevice::ReadOnly))
-//    {
-//        QMessageBox::critical(NULL, QString("出错了"),
-//                              QString("所有图片提取角点均失败，请检查是否输入了正确的靶标大小"),
-//                              QString("确定"));
-////        flag1 = false;
-//    }
-//    else if(!file.open(QIODevice::ReadOnly) || !file2.open(QIODevice::ReadOnly)
-//            || !file3.open(QIODevice::ReadOnly))
-//    {
-//        QMessageBox::critical(NULL, QString("提示"),
-//                              QString("读取标定结果失败，请检查是否误删文件"),
-//                              QString("确定"));
-////        flag1 = false;
-//    }
-//    else{
-//        QStringList filters;     //使用过滤器创建标定完成图片列表
-//        filters << "*.jpg";
-//        dir.setNameFilters(filters);
-//        QStringList temp = dir.entryList();
-//        for(int i = 0; i < temp.size(); i++)
-//            list.push_back(path + temp[i]);
-
-//        QTextStream in(&file);     //展示内参信息
-//        QTextStream in2(&file2);
-//        QTextStream in3(&file3);
-//        ui->text1->append("内参矩阵：");
-//        QStringList k = in.readAll().split(" ");
-//        ui->text1->append(k[0]+"  "+k[1]+"  "+k[2]);
-//        ui->text1->append(k[3]+"  "+k[4]+"  "+k[5]);
-//        ui->text1->append(k[6]+"  "+k[7]+"  "+k[8]);
-//        QStringList dc = in2.readAll().split(" ");
-//        ui->text1->append("径向畸变系数：");
-//        ui->text1->append(dc[0]+"  "+dc[1]+"  "+dc[4]);
-//        ui->text1->append("切向畸变系数：");
-//        ui->text1->append(dc[2]+"  "+dc[3]+"\n");
-//        in3.setEncoding(QStringConverter::System);
-//        ui->text1->append(in3.readAll());
-//        file.close();
-//        file2.close();
-//        file3.close();
-
-////        QString imgname("extrinsics.png");
-////        QImage image;
-////        image.load(imgname);
-////        ui->label->setPixmap(QPixmap::fromImage(image));
-////        ui->label->setScaledContents(true);
-
-//        QString iname(list[0]);
-//        QImage img;
-//        img.load(iname);
-//        recvShowPicSignal(img, ui->imgview);     //展示标定后图片，可以缩放拖拽
-////        flag1 = true;
-//    }
+    connect(thread2, SIGNAL(completed()), this, SLOT(showresult()));
 }
 
 
-void MainWindow::cursor_changeback()
+void CalibThread::run()
+{
+    calib(PathWithCHN(imgpath), calib_x, calib_y, calib_d);
+    emit completed();       //标定完成信号
+}
+
+
+void MainWindow::showresult()        //展示标定结果
 {
     this->setCursor(Qt::ArrowCursor);
-
-    QString path = QDir::currentPath() + "/data/相机标定/";
+    QString path = "./data/相机标定/";
 //    QDir dir(path);
 //    if(!dir.isEmpty())
 //        dir.removeRecursively();
@@ -573,9 +425,9 @@ void MainWindow::recvShowPicSignal(QImage image, QGraphicsView *view)     //可�
 }
 
 
-/////////////////////////////////////////////////////////////step2/////////////////////////////////////////////////////////////
+/***********************************************************初始解算*****************************************************************/
 
-void MainWindow::add(QLineEdit *in1, QLineEdit *in2, int num)
+void MainWindow::add(QLineEdit *in1, QLineEdit *in2, int num)      //特征点信息添加到特征点列表中
 {
 
     QFile f("./data/初始解算/c.txt");
@@ -609,6 +461,8 @@ void MainWindow::add(QLineEdit *in1, QLineEdit *in2, int num)
 void MainWindow::on_point_x_editingFinished()
 {
     TypeCheck(ui->point_x, reg2, "非负整数");
+    if(ui->point_y->text().isEmpty())
+        pnum++;
 }
 
 
@@ -616,13 +470,18 @@ void MainWindow::on_point_y_returnPressed()
 {
     TypeCheck(ui->point_x, reg2, "非负整数");
     add(ui->point_x, ui->point_y, 0);
-    ui->point_x_2->setFocus();
+    if(pnum >= 6)
+        hcalcula();
+    else
+        ui->point_x_2->setFocus();
 }
 
 
 void MainWindow::on_point_x_2_editingFinished()
 {
     TypeCheck(ui->point_x_2, reg2, "非负整数");
+    if(ui->point_y_2->text().isEmpty())
+        pnum++;
 }
 
 
@@ -630,12 +489,17 @@ void MainWindow::on_point_y_2_returnPressed()
 {
     TypeCheck(ui->point_y_2, reg2, "非负整数");
     add(ui->point_x_2, ui->point_y_2, 1);
-    ui->point_x_3->setFocus();
+    if(pnum >= 6)
+        hcalcula();
+    else
+        ui->point_x_3->setFocus();
 }
 
 void MainWindow::on_point_x_3_editingFinished()
 {
     TypeCheck(ui->point_x_3, reg2, "非负整数");
+    if(ui->point_y_3->text().isEmpty())
+        pnum++;
 }
 
 
@@ -643,12 +507,17 @@ void MainWindow::on_point_y_3_returnPressed()
 {
     TypeCheck(ui->point_y_3, reg2, "非负整数");
     add(ui->point_x_3, ui->point_y_3, 2);
-    ui->point_x_4->setFocus();
+    if(pnum >= 6)
+        hcalcula();
+    else
+        ui->point_x_4->setFocus();
 }
 
 void MainWindow::on_point_x_4_editingFinished()
 {
     TypeCheck(ui->point_x_4, reg2, "非负整数");
+    if(ui->point_y_4->text().isEmpty())
+        pnum++;
 }
 
 
@@ -656,12 +525,17 @@ void MainWindow::on_point_y_4_returnPressed()
 {
     TypeCheck(ui->point_y_4, reg2, "非负整数");
     add(ui->point_x_4, ui->point_y_4, 3);
-    ui->point_x_5->setFocus();
+    if(pnum >= 6)
+        hcalcula();
+    else
+        ui->point_x_5->setFocus();
 }
 
 void MainWindow::on_point_x_5_editingFinished()
 {
     TypeCheck(ui->point_x_5, reg2, "非负整数");
+    if(ui->point_y_5->text().isEmpty())
+        pnum++;
 }
 
 
@@ -669,13 +543,18 @@ void MainWindow::on_point_y_5_returnPressed()
 {
     TypeCheck(ui->point_y_5, reg2, "非负整数");
     add(ui->point_x_5, ui->point_y_5, 4);
-    ui->point_x_6->setFocus();
+    if(pnum >= 6)
+        hcalcula();
+    else
+        ui->point_x_6->setFocus();
 }
 
 
 void MainWindow::on_point_x_6_editingFinished()
 {
     TypeCheck(ui->point_x_6, reg2, "非负整数");
+    if(ui->point_y_6->text().isEmpty())
+        pnum++;
 }
 
 
@@ -683,7 +562,8 @@ void MainWindow::on_point_y_6_returnPressed()
 {
     TypeCheck(ui->point_y_6, reg2, "非负整数");
     add(ui->point_x_6, ui->point_y_6, 5);
-    hcalcula();
+    if(pnum >= 6)
+        hcalcula();
 }
 
 
@@ -732,23 +612,66 @@ void MainWindow::showpic(QImage pic, QGraphicsView *view)     //可缩放的显�
 
 cv::VideoCapture camera;
 cv::Mat cframe;
+CameraThread *ct;       //相机子线程
 void MainWindow::on_loadcamera_clicked()     //step2加载摄像头
 {
     videos = 1;
     ui->camera->setChecked(true);
     ui->groupBox_2->show();
-    camera.open(0);
+    ui->freeze->setEnabled(true);
+    ct = new CameraThread();
+    ct->start();
+
+    connect(ct, SIGNAL(hide()), this, SLOT(pbhide()));
+
+//    camera.open(0);
+//    while(1){
+//        camera>>cframe;
+//        cv::namedWindow("camera", 0);
+//        cv::imshow("camera", cframe);
+
+//        HWND hw = (HWND)cvGetWindowHandle("camera");
+//        hw = FindWindow(0, L"camera");
+//        ::SetWindowPos(hw, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+//        ::ShowWindow(hw, SW_SHOW);
+
+//        cv::waitKey(10);
+//        if(cv::getWindowProperty("camera", cv::WND_PROP_VISIBLE) < 1){
+//            cv::destroyAllWindows();
+//            break;
+//        }
+//    }
+//    camera.release();
+}
+
+
+void CameraThread::run()
+{
+    camera.open(cid);
     while(1){
         camera>>cframe;
-        cv::imshow(" ", cframe);
-        int flag = cv::waitKey(10);
-        if(flag == 27){
-            ui->groupBox_2->hide();
+        cv::namedWindow("camera", 0);
+        cv::imshow("camera", cframe);
+
+        HWND hw = (HWND)cvGetWindowHandle("camera");
+        hw = FindWindow(0, L"camera");
+        ::SetWindowPos(hw, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+        ::ShowWindow(hw, SW_SHOW);
+
+        cv::waitKey(10);
+        if(cv::getWindowProperty("camera", cv::WND_PROP_VISIBLE) < 1){
             cv::destroyAllWindows();
+            emit hide();
             break;
         }
     }
     camera.release();
+}
+
+
+void MainWindow::pbhide()
+{
+    ui->freeze->setEnabled(false);
 }
 
 
@@ -758,13 +681,14 @@ void MainWindow::on_freeze_clicked()        //截图手动选取初始帧
     QImage img("./data/初始解算/capture.jpg");
     sc = new ImageScene();
     showpic(img, ui->s2view);
-    flag2 = true;
 }
 
 
 void MainWindow::on_chosevideo_clicked()     //step2选择视频文件
 {
     videopath = QFileDialog::getOpenFileName(this, "选择文件", "/", "视频文件 (*.mp4 *.avi);;");
+    if(videopath.isEmpty())
+        return;
     cv::VideoCapture video(PathWithCHN(videopath));
 
     cv::Mat frame1;
@@ -781,58 +705,9 @@ void MainWindow::on_chosevideo_clicked()     //step2选择视频文件
 //        sc->addItem(it);
 //        ui->s2view->setSceneRect(QRectF(0, 0, ui->s2view->width(), ui->s2view->height()));
 //        ui->s2view->setScene(sc);
-    flag2 = true;
     videos = 2;
     ui->video->setChecked(true);
 }
-
-
-//void MainWindow::on_point_clicked()
-//{
-//    pointnum = 0;
-//    ui->point->setStyleSheet("color: red");
-//    num[pointnum] = 1;
-//}
-
-
-//void MainWindow::on_point_2_clicked()
-//{
-//    pointnum = 1;
-//    ui->point_2->setStyleSheet("color: red");
-//    num[pointnum] = 1;
-//}
-
-
-//void MainWindow::on_point_3_clicked()
-//{
-//    pointnum = 2;
-//    ui->point_3->setStyleSheet("color: red");
-//    num[pointnum] = 1;
-//}
-
-
-//void MainWindow::on_point_4_clicked()
-//{
-//    pointnum = 3;
-//    ui->point_4->setStyleSheet("color: red");
-//    num[pointnum] = 1;
-//}
-
-
-//void MainWindow::on_point_5_clicked()
-//{
-//    pointnum = 4;
-//    ui->point_5->setStyleSheet("color: red");
-//    num[pointnum] = 1;
-//}
-
-
-//void MainWindow::on_point_6_clicked()
-//{
-//    pointnum = 5;
-//    ui->point_6->setStyleSheet("color: red");
-//    num[pointnum] = 1;
-//}
 
 
 //void MainWindow::on_s2run_clicked()     //录入按钮，输出选取点的物理坐标和像素坐标
@@ -1163,30 +1038,31 @@ void MainWindow::hcalcula()     //step2解算
 //    for(int i : num)
 //        ans += i;
 
+    QFileInfo info(videopath);
+
     if(videos == 1)
         hname = "./data/H.txt";
     else if(videos == 2)
-        hname = "./data/" + Getfname(videopath) + ".txt";
-
-    std::vector<cv::Point2d> w, p;
-    int flag = 0;       //判断6个特征点是否都录入
-    for(auto & i : pointslist)
-        if(i[3] != "0"){
-            flag++;
-            w.push_back(cv::Point2d(i[0].toInt(), i[1].toInt()));
-            p.push_back(cv::Point2d(i[2].toDouble(), i[3].toDouble()));
-        }
+        hname = "./data/H-" + info.baseName() + ".txt";
 
     if(hname.isEmpty()){
         QMessageBox::critical(NULL, "错误", "请先读取摄像头或读取本地视频", "确定");
         return;
     }
-    if(flag != 6){
-        w.clear();
-        p.clear();
-        QMessageBox::critical(NULL, "错误", "请先完成6个特征点的录入", "确定");
-        return;
-    }
+
+    std::vector<cv::Point2d> w, p;
+    for(auto & i : pointslist)
+        if(i[3] != "0"){
+            w.push_back(cv::Point2d(i[0].toInt(), i[1].toInt()));
+            p.push_back(cv::Point2d(i[2].toDouble(), i[3].toDouble()));
+        }
+
+//    if(pnum < 6){
+//        w.clear();
+//        p.clear();
+//        QMessageBox::critical(NULL, "错误", "请先完成6个特征点的录入", "确定");
+//        return;
+//    }
 
     bool ok = rcs::CalHomographyMatrix(p, w, H);
     if(!ok){
@@ -1204,55 +1080,16 @@ void MainWindow::hcalcula()     //step2解算
     in<<h;
     f.close();
 
-    ui->s2h->append("H:");
+    ui->s2h->setText("H:");
     ui->s2h->append(h1);
     ui->s2h->append(h2);
     ui->s2h->append(h3);
-//    if(!flag2)
-//        QMessageBox::warning(NULL, QString("提示"),
-//                             QString("请先选取图片或视频"),
-//                             QString("确定"));
-//    else if(ans != 6)
-//        QMessageBox::warning(NULL, QString("提示"),
-//                             QString("需要手动选取6个特征点"),
-//                             QString("确定"));
-//    else{
-//        std::vector<cv::Point2d> w, p;
-//        for(int i = 0; i < 6; i++){
-//            cv::Point2d wp, pp;
-//            wp = cv::Point2d(pointslist[i][0].toInt(), pointslist[i][1].toInt());
-//            pp = cv::Point2d(pointslist[i][2].toDouble(), pointslist[i][3].toDouble());
-//            w.push_back(wp);
-//            p.push_back(pp);
-//        }
-//        Eigen::Matrix3d H;
-//        bool ok = rcs::CalHomographyMatrix(p, w, H);     //解算H
-//        if(!ok)
-//            QMessageBox::critical(NULL, QString("错误"),
-//                                  QString("单应矩阵H解算错误，请检查是否输入了正确的坐标"),
-//                                  QString("确定"));
-//        else{
-//            QString h1 = QString::number(H(0, 0)) + " " + QString::number(H(0, 1)) + " " + QString::number(H(0, 2));
-//            QString h2 = QString::number(H(1, 0)) + " " + QString::number(H(1, 1)) + " " + QString::number(H(1, 2));
-//            QString h3 = QString::number(H(2, 0)) + " " + QString::number(H(2, 1)) + " " + QString::number(H(2, 2));
-//            QString h = h1 + " " + h2 + " " + h3;
-
-//            QTextStream in2(&f2);
-//            f2.open(QIODevice::WriteOnly);
-//            in2<<h;
-//            f2.close();
-
-//            ui->s2h->append("H:");
-//            ui->s2h->append(h1);
-//            ui->s2h->append(h2);
-//            ui->s2h->append(h3);
-//        }
-//    }
 }
 
 
-/////////////////////////////////////////////////////////////step3/////////////////////////////////////////////////////////////
-Eigen::Matrix3d MainWindow::GetMatrix(QString file)     //从txt文件中读取数据存到Eigen::Matrix3d中
+/***********************************************************导航定位*****************************************************************/
+
+Eigen::Matrix3d GetMatrix(QString file)     //从txt文件中读取数据存到Eigen::Matrix3d中
 {
     Eigen::Matrix3d M;
     QFile f(file);
@@ -1272,7 +1109,7 @@ Eigen::Matrix3d MainWindow::GetMatrix(QString file)     //从txt文件中读取�
 }
 
 
-cv::Mat MainWindow::GetMat(QString file, int x, int y)     //从txt文件中读取数据存到cv::Mat中
+cv::Mat GetMat(QString file, int x, int y)     //从txt文件中读取数据存到cv::Mat中
 {
     QFile f(file);
     QString info = "读取" + file +"文件失败";
@@ -1292,11 +1129,22 @@ cv::Mat MainWindow::GetMat(QString file, int x, int y)     //从txt文件中读�
 }
 
 
+void MainWindow::on_camera_clicked()        //手动选择视频源为实时视频
+{
+    if(videos == 0){
+        QMessageBox::critical(NULL, "错误", "实时视频请先进行初始解算", "确定");
+        ui->video->setChecked(true);
+        return;
+    }
+}
+
+bool trackflag = false;
 void MainWindow::on_track_clicked()     //step3追踪
 {
-    rcs::trackerType ttype;
-    rcs::featureType ftype;
-    rcs::solveMethod smethod;
+    if(trackflag){
+        QMessageBox::warning(NULL, "错误", "软件目前只能进行一次追踪，再次追踪请重新打开软件", "确定");
+        return;
+    }
 
     if(ui->orb->isChecked()){
         ftype = rcs::ORB;
@@ -1350,9 +1198,12 @@ void MainWindow::on_track_clicked()     //step3追踪
         tname = "r";
     }
 
+    QFileInfo info(videopath);
     if(videos == 0){
         videopath = QFileDialog::getOpenFileName(this, "选择文件", "/", "视频文件(*.mp4 *.avi);;");
-        QString ffname = "./data/" + Getfname(videopath) + ".txt";
+        if(videopath.isEmpty())
+            return;
+        QString ffname = "./data/H-" + info.baseName() + ".txt";
         QFile f(ffname);
         if(!f.exists()){
             QMessageBox::critical(NULL, "错误", "所选视频文件不存在单应矩阵信息，请先进行初始解算", "确定");
@@ -1362,8 +1213,25 @@ void MainWindow::on_track_clicked()     //step3追踪
         videos =2;
     }
 
-    Eigen::Matrix3d K = GetMatrix("./data/K.txt");
-    cv::Mat d = GetMat("./data/distCoeffs.txt", 1, 5);
+//    Eigen::Matrix3d K = GetMatrix("./data/K.txt");
+//    cv::Mat d = GetMat("./data/distCoeffs.txt", 1, 5);
+
+    ui->s3hide->show();
+
+    trackflag = true;
+
+    pt = new PangolinThread();
+    qApp->processEvents();
+
+    pt->start();
+
+    connect(pt, SIGNAL(sendwid()), this, SLOT(showid()));
+    connect(pt, SIGNAL(sendata(QString)), this, SLOT(showdata(QString)));
+    connect(pt, SIGNAL(sendimg1()), this, SLOT(showimg1()));
+    connect(pt, SIGNAL(sendimg2()), this, SLOT(showimg2()));
+    connect(pt, SIGNAL(sendlog()), this, SLOT(showlog()));
+    connect(pt, SIGNAL(savelog()), this, SLOT(SaveLogFile()));
+    connect(pt, SIGNAL(logend(QString)), this, SLOT(showend(QString)));
 
 //    if(videos == 0){
 //        if(ui->camera->isChecked()){
@@ -1401,7 +1269,7 @@ void MainWindow::on_track_clicked()     //step3追踪
 //    Eigen::Matrix3d K = GetMatrix("./data/K.txt");
 //    cv::Mat distCoeffs = GetMat("./data/distCoeffs.txt", 1, 5);
 
-    track(H, K, d, ttype, ftype, smethod);
+//    track(H, K, d, ttype, ftype, smethod);
 }
 
 
@@ -1417,6 +1285,277 @@ void MainWindow::on_ModelUnload_clicked()
 }
 
 using namespace std;
+void PangolinThread::run()
+{
+    cv::VideoCapture video;
+    QDateTime cdt = QDateTime::currentDateTime();
+    QString date = cdt.toString("-MM-dd-hh-mm");
+    QFileInfo info(videopath);
+
+    if(videos == 1){
+        logname = "./data/导航定位/camera" + date + "-log.txt";
+        resultname = "./data/导航定位/camera" + somename + ".txt";
+        video.open(cid);
+    }
+    else if(videos == 2){
+        logname = "./data/导航定位/" + info.baseName() + date + "-log.txt";
+        resultname = "./data/导航定位/" + info.baseName() + somename + ".txt";
+        video.open(PathWithCHN(videopath));
+    }
+
+    QFile result(resultname);
+
+    rcs::myTracker mt(ttype, ftype, smethod);
+    Eigen::Matrix3d K = GetMatrix("./data/K.txt");
+    cv::Mat d = GetMat("./data/distCoeffs.txt", 1, 5);
+
+    video.read(pglFrame);
+    mt.Track(pglFrame, K, d, H, rMat, tVec);
+    QString fps = QString::number(mt.frameNum);
+    cur_t = tVec.norm();
+    emit sendata(fps);
+
+    int fpsnum = 0, endflag = 0;
+    double p0[3] = {tVec[0], tVec[1], tVec[2]};
+
+    pangolin::CreateWindowAndBind("pglthread", 1280, 720);
+    glEnable(GL_DEPTH_TEST);
+    pangolin::OpenGlRenderState s_cam(
+                pangolin::ProjectionMatrix(1280, 720, K(0, 0), K(1, 1), K(0, 2), K(1, 2), 0.02, 2000),
+                pangolin::ModelViewLookAt(tVec[0], tVec[1], tVec[2], 0, 0, 0, pangolin::AxisY));
+    pangolin::Handler3D handler(s_cam);
+    pangolin::View& d_cam = pangolin::CreateDisplay().SetBounds(0, 1, 0, 1, -1280.0f/720.0f)
+            .SetHandler(&handler);
+    pangolin::CreatePanel("menu").SetBounds(0.0, 0.32, 0.0, 0.32);
+    pangolin::Var<bool> menu("menu.Trajectory", true, true);
+    pangolin::Var<bool> menu2("menu.KeyFrame", true, true);
+    std::string pglr1, pglr2, pglr3, pglt;
+    pangolin::Var<std::string> pglrm1("menu.R", pglr1);
+    pangolin::Var<std::string> pglrm2("menu. ", pglr2);
+    pangolin::Var<std::string> pglrm3("menu.  ", pglr3);
+    pangolin::Var<std::string> pglvt("menu.t", pglt);
+
+    pglwid = (WId)FindWindow(L"Pangolin", L"pglthread");
+    emit sendwid();
+
+    while(1){
+        if(pangolin::ShouldQuit())
+            break;
+        if(video.read(pglFrame)){
+            bool ok = mt.Track(pglFrame, K, d, H, rMat, tVec);
+            matchimg = MatToQImage(mt.matchImg);
+            emit sendimg1();
+            emit sendimg2();
+            if(ok){
+                vector<float> pose_t;
+                pose_t.push_back(rMat(0, 0));pose_t.push_back(rMat(1, 0));pose_t.push_back(rMat(2, 0));
+                pose_t.push_back(rMat(0, 1));pose_t.push_back(rMat(1, 1));pose_t.push_back(rMat(2, 1));
+                pose_t.push_back(rMat(0, 2));pose_t.push_back(rMat(1, 2));pose_t.push_back(rMat(2, 2));
+                pose_t.push_back(tVec[0]);pose_t.push_back(tVec[1]);pose_t.push_back(tVec[2]);
+                pose.push_back(pose_t);
+                pose_t.clear();
+
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                d_cam.Activate(s_cam);
+                glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+                glBegin(GL_LINES);
+                glColor3f(1, 0, 0);
+                glVertex3f(p0[0], p0[1], p0[2]);   glVertex3f(p0[0]+10, p0[1], p0[2]);
+                glColor3f(0, 1, 0);
+                glVertex3f(p0[0], p0[1], p0[2]);   glVertex3f(p0[0], p0[1]+10, p0[2]);
+                glColor3f(0, 0 , 1);
+                glVertex3f(p0[0], p0[1], p0[2]);   glVertex3f(p0[0], p0[1], p0[2]+10);
+                glEnd();
+
+                if(modelload){
+                    glShadeModel(GL_SMOOTH);
+                    glEnable(GL_LIGHTING);
+                    glEnable(GL_LIGHT0);
+                    glBegin(GL_TRIANGLES);
+                    for(int i = 0; i < normal.size(); i++){
+                        int j = 3 * i;
+                        glNormal3f(normal[i].x(), normal[i].y(), normal[i].z());
+                        glVertex3f(vertex[j].x(), vertex[j].y(), vertex[j].z());
+                        glVertex3f(vertex[++j].x(), vertex[j].y(), vertex[j].z());
+                        glVertex3f(vertex[++j].x(), vertex[j].y(), vertex[j].z());
+                    }
+                    glEnd();
+                    glDisable(GL_LIGHTING);
+                }
+
+                int k = 0;
+                for(k = 0; k < pose.size();k++){
+                    glPushMatrix();
+                    std::vector<GLfloat> Twc = { pose[k][0],pose[k][1],pose[k][2],0,
+                                              pose[k][3],pose[k][4],pose[k][5],0,
+                                              pose[k][6],pose[k][7],pose[k][8],0,
+                                              pose[k][9],pose[k][10],pose[k][11],1 };
+                    glMultMatrixf(Twc.data());
+                    if (menu2) {
+                        glLineWidth(2);
+                        glBegin(GL_LINES);
+                        glColor3f(1.0f, 0.f, 0.f);
+                        glVertex3f(0, 0, 0);		glVertex3f(0.1, 0, 0);
+                        glColor3f(0.f, 1.0f, 0.f);
+                        glVertex3f(0, 0, 0);		glVertex3f(0, 0.2, 0);
+                        glColor3f(0.f, 0.f, 1.0f);
+                        glVertex3f(0, 0, 0);		glVertex3f(0, 0, 0.1);
+                        glColor3f(1.f, 0.f, 1.f);
+                        glVertex3f(0, 0, 0);		glVertex3f(0.1, 0.2, 0);
+                        glVertex3f(0.1, 0, 0);		glVertex3f(0, 0.2, 0);
+                        glVertex3f(0, 0.2, 0);		glVertex3f(0.1, 0.2, 0);
+                        glVertex3f(0.1, 0, 0);		glVertex3f(0.1, 0.2, 0);
+                        glEnd();
+                    }
+                    glPopMatrix();
+                }
+
+                QString a = QString::number(rMat(0, 0))+","+QString::number(rMat(0, 1))+","+QString::number(rMat(0, 2));
+                pglr1 = a.toStdString();
+                pglrm1 = pglr1;
+                QString b = QString::number(rMat(1, 0))+","+QString::number(rMat(1, 1))+","+QString::number(rMat(1, 2));
+                pglr2 = b.toStdString();
+                pglrm2 = pglr2;
+                QString c = QString::number(rMat(2, 0))+","+QString::number(rMat(2, 1))+","+QString::number(rMat(2, 2));
+                pglr3 = c.toStdString();
+                pglrm3 = pglr3;
+                QString d = QString::number(tVec[0])+','+QString::number(tVec[1])+','+QString::number(tVec[2]);
+                pglt = d.toStdString();
+                pglvt = pglt;
+
+                if (menu){
+                    glLineWidth(2);
+                    glBegin(GL_LINES);
+                    glColor3f(0.f, 0.f, 0.f);
+                    for (int i = 0; i < pose.size() - 1; i++){
+                        glVertex3f(pose[i][9], pose[i][10], pose[i][11]);
+                        glVertex3f(pose[i + 1][9], pose[i + 1][10], pose[i + 1][11]);
+                    }
+                    glEnd();
+                }
+                pangolin::FinishFrame();
+
+                fps = QString::number(mt.frameNum);
+                emit sendata(fps);
+                QString r = QString::number(rMat(0, 0))+" "+QString::number(rMat(0, 1))+" "+QString::number(rMat(0, 2))+" "+
+                        QString::number(rMat(1, 0))+" "+QString::number(rMat(1, 1))+" "+QString::number(rMat(1, 2))+" "+
+                        QString::number(rMat(2, 0))+" "+QString::number(rMat(2, 1))+" "+QString::number(rMat(2, 2));
+                Eigen::Quaterniond quat(rMat);
+                QString q = QString::number(quat.x())+" "+QString::number(quat.y())+" "
+                        +QString::number(quat.z())+" "+QString::number(quat.w());
+                QString t = QString::number(tVec[0])+" "+QString::number(tVec[1])+" "+QString::number(tVec[2]);
+                result.open(QIODevice::WriteOnly | QIODevice::Append);
+                QTextStream rin(&result);
+                if(tname == "q")
+                    rin<<t<<" "<<q<<"\n";
+                else if(tname == "r")
+                    rin<<t<<" "<<r<<"\n";
+                result.close();
+
+                emit savelog();
+                fpsnum++;
+                endflag = fpsnum - 1;
+            }
+            else{
+                errlog = QString::fromStdString(mt.log);
+                emit sendlog();
+            }
+        }
+        else{
+            endflag++;
+            if(endflag == fpsnum){
+                lend = "一共匹配到"+QString::number(fpsnum)+"帧";
+                fps = QString::number(fpsnum);
+                emit logend(fps);
+                emit savelog();
+            }
+
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            d_cam.Activate(s_cam);
+            glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+            glBegin(GL_LINES);
+            glColor3f(1, 0, 0);
+            glVertex3f(p0[0], p0[1], p0[2]);   glVertex3f(p0[0]+10, p0[1], p0[2]);
+            glColor3f(0, 1, 0);
+            glVertex3f(p0[0], p0[1], p0[2]);   glVertex3f(p0[0], p0[1]+10, p0[2]);
+            glColor3f(0, 0 , 1);
+            glVertex3f(p0[0], p0[1], p0[2]);   glVertex3f(p0[0], p0[1], p0[2]+10);
+            glEnd();
+
+            if(modelload){
+                glShadeModel(GL_SMOOTH);
+                glEnable(GL_LIGHTING);
+                glEnable(GL_LIGHT0);
+                glBegin(GL_TRIANGLES);
+                for(int i = 0; i < normal.size(); i++){
+                    int j = 3 * i;
+                    glNormal3f(normal[i].x(), normal[i].y(), normal[i].z());
+                    glVertex3f(vertex[j].x(), vertex[j].y(), vertex[j].z());
+                    glVertex3f(vertex[++j].x(), vertex[j].y(), vertex[j].z());
+                    glVertex3f(vertex[++j].x(), vertex[j].y(), vertex[j].z());
+                }
+                glEnd();
+                glDisable(GL_LIGHTING);
+            }
+
+            int k = 0;
+            for(k = 0; k < pose.size();k++){
+                glPushMatrix();
+                std::vector<GLfloat> Twc = { pose[k][0],pose[k][1],pose[k][2],0,
+                                          pose[k][3],pose[k][4],pose[k][5],0,
+                                          pose[k][6],pose[k][7],pose[k][8],0,
+                                          pose[k][9],pose[k][10],pose[k][11],1 };
+                glMultMatrixf(Twc.data());
+                if (menu2) {
+                    glLineWidth(2);
+                    glBegin(GL_LINES);
+                    glColor3f(1.0f, 0.f, 0.f);
+                    glVertex3f(0, 0, 0);		glVertex3f(0.1, 0, 0);
+                    glColor3f(0.f, 1.0f, 0.f);
+                    glVertex3f(0, 0, 0);		glVertex3f(0, 0.2, 0);
+                    glColor3f(0.f, 0.f, 1.0f);
+                    glVertex3f(0, 0, 0);		glVertex3f(0, 0, 0.1);
+                    glColor3f(1.f, 0.f, 1.f);
+                    glVertex3f(0, 0, 0);		glVertex3f(0.1, 0.2, 0);
+                    glVertex3f(0.1, 0, 0);		glVertex3f(0, 0.2, 0);
+                    glVertex3f(0, 0.2, 0);		glVertex3f(0.1, 0.2, 0);
+                    glVertex3f(0.1, 0, 0);		glVertex3f(0.1, 0.2, 0);
+                    glEnd();
+                }
+                glPopMatrix();
+            }
+
+            QString a = QString::number(rMat(0, 0))+","+QString::number(rMat(0, 1))+","+QString::number(rMat(0, 2));
+            pglr1 = a.toStdString();
+            pglrm1 = pglr1;
+            QString b = QString::number(rMat(1, 0))+","+QString::number(rMat(1, 1))+","+QString::number(rMat(1, 2));
+            pglr2 = b.toStdString();
+            pglrm2 = pglr2;
+            QString c = QString::number(rMat(2, 0))+","+QString::number(rMat(2, 1))+","+QString::number(rMat(2, 2));
+            pglr3 = c.toStdString();
+            pglrm3 = pglr3;
+            QString d = QString::number(tVec[0])+','+QString::number(tVec[1])+','+QString::number(tVec[2]);
+            pglt = d.toStdString();
+            pglvt = pglt;
+
+            if (menu){
+                glLineWidth(2);
+                glBegin(GL_LINES);
+                glColor3f(0.f, 0.f, 0.f);
+                for (int i = 0; i < pose.size() - 1; i++){
+                    glVertex3f(pose[i][9], pose[i][10], pose[i][11]);
+                    glVertex3f(pose[i + 1][9], pose[i + 1][10], pose[i + 1][11]);
+                }
+                glEnd();
+            }
+            pangolin::FinishFrame();
+        }
+    }
+}
+
+
 /*跟踪函数*/
 void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
                        rcs::trackerType ttype, rcs::featureType ftype, rcs::solveMethod smethod)
@@ -1430,7 +1569,7 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     QString logname;
     if(videos == 1){
         logname = "./data/导航定位/camera" + date + "-log.txt";
-        video.open(0);
+        video.open(cid);
     }
     else{
         logname = "./data/导航定位/" + Getfname(videopath) + date + "-log.txt";
@@ -1490,11 +1629,11 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
     pangolin::CreatePanel("menu").SetBounds(0.0, 0.32, 0.0, 0.32);
     pangolin::Var<bool> menu("menu.Trajectory", true, true);
     pangolin::Var<bool> menu2("menu.KeyFrame", true, true);
-    string routput1, routput2, routput3, toutput;
-    pangolin::Var<string> pangolin_rm1("menu.R", routput1);
-    pangolin::Var<string> pangolin_rm2("menu. ", routput2);
-    pangolin::Var<string> pangolin_rm3("menu.  ", routput3);
-    pangolin::Var<string> pangolin_vt("menu.t", toutput);
+    std::string routput1, routput2, routput3, toutput;
+    pangolin::Var<std::string> pangolin_rm1("menu.R", routput1);
+    pangolin::Var<std::string> pangolin_rm2("menu. ", routput2);
+    pangolin::Var<std::string> pangolin_rm3("menu.  ", routput3);
+    pangolin::Var<std::string> pangolin_vt("menu.t", toutput);
 
     WId wid = (WId)FindWindow(L"pangolin", L"Pangolin_Track");     //获得pangolin界面的句柄，将其放入窗口部件中
     qDebug()<<"wid:"<<wid;
@@ -1506,10 +1645,10 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
 //    qmw->show();
 
     QWidget *m_widget = QWidget::createWindowContainer(mw, this, Qt::Widget);
+//    vbl->setContentsMargins(1, 1, 1, 1);
+//    vbl->addWidget(m_widget);
     ui->verticalLayout->setContentsMargins(1, 1, 1, 1);
     ui->verticalLayout->addWidget(m_widget);
-
-    flagtrack = true;
 
 //    t[0] -= 10;
 //    t[1] += 10;
@@ -1520,8 +1659,8 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
             break;
         if(video.read(frame)){
             qApp->processEvents();
-            Eigen::Matrix3d rMat;
-            Eigen::Vector3d tVec;
+            Eigen::Matrix3d rMatt;
+            Eigen::Vector3d tVect;
             bool ok = track.Track(frame, K, distCoeffs, H, rMat, tVec);
 
             LabelDisplayMat(ui->video_label, frame);
@@ -1686,7 +1825,7 @@ void MainWindow::track(Eigen::Matrix3d H, Eigen::Matrix3d K, cv::Mat distCoeffs,
             if(endflag == fpsnum){
                 video.release();
                 ui->s3log->append("一共匹配到"+QString::number(fpsnum)+"帧！");
-                rtname = "./data/导航定位/"+Getfname(fname)+"-"+QString::number(fpsnum)+".txt";
+                QString rtname = "./data/导航定位/"+Getfname(fname)+"-"+QString::number(fpsnum)+".txt";
                 QFile::rename(fname, rtname);
                 QFile log(logname);
                 QTextStream logout(&log);
@@ -1800,5 +1939,81 @@ void MainWindow::LabelDisplayMat(QLabel *label, cv::Mat &mat)     //step3在labe
     pixmap.scaled(label->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
     label->setScaledContents(true);
     label->setPixmap(pixmap);
+}
+
+
+void MainWindow::showid()
+{
+    QWindow *qwin = QWindow::fromWinId(pglwid);
+    QWidget *qwid = QWidget::createWindowContainer(qwin, this);
+    ui->verticalLayout->addWidget(qwid);
+}
+
+
+void MainWindow::showdata(QString data)
+{
+    ui->s3log->append("Frame:" + data);
+    ui->s3log->append("R:"+QString::number(rMat(0,0))+" "+QString::number(rMat(0,1))+" "+QString::number(rMat(0,2)));
+    ui->s3log->append(QString::number(rMat(1,0))+" "+QString::number(rMat(1,1))+" "+QString::number(rMat(1,2)));
+    ui->s3log->append(QString::number(rMat(2,0))+" "+QString::number(rMat(2,1))+" "+QString::number(rMat(2,2)));
+    ui->s3log->append("||R||="+QString::number(rMat.determinant()));
+    ui->s3log->append("t:"+QString::number(tVec[0])+"\n"+QString::number(tVec[1])+"\n"+QString::number(tVec[2]));
+    ui->s3log->append("||t||="+QString::number(tVec.norm()));
+    ui->s3log->append("Δt="+QString::number(tVec.norm()-cur_t));
+}
+
+
+void MainWindow::showimg1()
+{
+    QPixmap pixmap = QPixmap::fromImage(MatToQImage(pglFrame));
+    pixmap.scaled(ui->video_label->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    ui->video_label->setScaledContents(true);
+    ui->video_label->setPixmap(pixmap);
+}
+
+
+void MainWindow::showimg2()
+{
+    QPixmap pixmap = QPixmap::fromImage(matchimg);
+    pixmap.scaled(ui->match_label->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    ui->match_label->setScaledContents(true);
+    ui->match_label->setPixmap(pixmap);
+}
+
+
+void MainWindow::showlog()
+{
+    ui->s3log->append(errlog);
+}
+
+
+void MainWindow::SaveLogFile()
+{
+    QFile f(logname);
+    QTextStream in(&f);
+    f.open(QIODevice::WriteOnly);
+    in<<ui->s3log->toPlainText();
+    f.close();
+}
+
+
+void MainWindow::showend(QString data)
+{
+    ui->s3log->append(lend);
+    QFileInfo f(resultname);
+    QString rename = "./data/导航定位/" + f.baseName() + "-" + data + ".txt";
+    QFile::rename(resultname, rename);
+}
+
+
+void MainWindow::on_pushButton_clicked()
+{
+    win2->show();
+}
+
+
+void MainWindow::on_pushButton_4_clicked()
+{
+    win3->show();
 }
 

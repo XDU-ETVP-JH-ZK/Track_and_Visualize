@@ -1,4 +1,4 @@
-QT       += core gui
+QT       += core gui multimedia multimediawidgets
 #multimedia multimediawidgets
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
@@ -13,28 +13,43 @@ CONFIG += c++11
 
 SOURCES += \
     calib_thread.cpp \
+    cameraThread.cpp \
     image_change.cpp \
     imageitem.cpp \
     imagescene.cpp \
     imagewidget.cpp \
     main.cpp \
     mainwindow.cpp \
-    model_thread.cpp
+    model_thread.cpp \
+    pangolinThread.cpp \
+    slamwindow.cpp \
+    winfocus.cpp
 
 HEADERS += \
     Launch.h \
     calib_thread.h \
+    cameraThread.h \
     image_change.h \
     imageitem.h \
     imagescene.h \
     imagewidget.h \
     mainwindow.h \
     model_thread.h \
+    pangolinThread.h \
     pangolin_lib.h \
-    reconstruction.h
+    reconstruction.h \
+    slamwindow.h \
+    winfocus.h
 
 FORMS += \
-    mainwindow.ui
+    mainwindow.ui \
+    slamwindow.ui \
+    winfocus.ui
+
+DISTFILES += \
+    StaticLib1.lib \
+    pangolin_lib.lib \
+    reconstruction.lib
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -77,11 +92,6 @@ DEPENDPATH += $$PWD/.
 
 win32:!win32-g++: PRE_TARGETDEPS += $$PWD/./pangolin_lib.lib
 else:win32-g++: PRE_TARGETDEPS += $$PWD/./libpangolin_lib.a
-
-DISTFILES += \
-    StaticLib1.lib \
-    pangolin_lib.lib \
-    reconstruction.lib
 
 #INCLUDEPATH += D:/PCL/include/pcl-1.12
 #INCLUDEPATH += D:/PCL/3rdParty/Boost/include/boost-1_78

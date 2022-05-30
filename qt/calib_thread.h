@@ -6,6 +6,7 @@
 
 #include "Launch.h"
 
+
 class CalibThread : public QThread
 {
     Q_OBJECT
