@@ -21,7 +21,8 @@ int videos = 0;     //视频源,1:摄像头,2:本地视频
 Eigen::Matrix3d H;      //单应矩阵
 QStringList list;     //step1中切换图片列表
 QString imgpath;     //step1选取的路径
-QString videopath;     //step2选取的视频路径
+bool videotype = false;     //是否为双目视频，默认为否
+QString videopath, video2path;     //step2选取的视频路径 双目视频路径
 std::vector<double> plist;      //每个手动选取角点的像素坐标
 int pnum = 0;       //已录入特征点个数
 QList<QVector3D> normal;        //模型法线数据
@@ -58,9 +59,14 @@ MainWindow::MainWindow(QWidget *parent)
     this->camerainit();
     this->tableinit();
 
-//    ModelThread *thread1 = new ModelThread();
-//    thread1->start();
-//    connect(thread1, SIGNAL(succeed()), this, SLOT(load_model_succeed()));
+    ModelThread *thread1 = new ModelThread();
+    thread1->start();
+    connect(thread1, SIGNAL(succeed()), this, SLOT(load_model_succeed()));
+    QFile f("1.stl");
+    if(!f.exists()){
+        QMessageBox::critical(NULL, "错误", "没找到模型文件", "确定");
+        return;
+    }
 
     win2 = new WinFocus(this);
     win3 = new SlamWindow(this);
@@ -135,10 +141,10 @@ void MainWindow::tableinit()
 void ModelThread::run()
 {
     QFile f("1.stl");
-    if(!f.exists()){
-        QMessageBox::critical(NULL, "错误", "没找到模型文件", "确定");
-        return;
-    }
+//    if(!f.exists()){
+//        QMessageBox::critical(NULL, "错误", "没找到模型文件", "确定");
+//        return;
+//    }
     f.open(QIODevice::ReadOnly);
     while(!f.atEnd()){
         QString line = f.readLine().trimmed();
@@ -1212,6 +1218,8 @@ void MainWindow::on_track_clicked()     //step3追踪
         H = GetMatrix(ffname);
         videos =2;
     }
+    else
+        H = GetMatrix("./data/H.txt");
 
 //    Eigen::Matrix3d K = GetMatrix("./data/K.txt");
 //    cv::Mat d = GetMat("./data/distCoeffs.txt", 1, 5);
@@ -1300,7 +1308,10 @@ void PangolinThread::run()
     else if(videos == 2){
         logname = "./data/导航定位/" + info.baseName() + date + "-log.txt";
         resultname = "./data/导航定位/" + info.baseName() + somename + ".txt";
-        video.open(PathWithCHN(videopath));
+        if(videotype)
+            video.open(PathWithCHN(video2path));
+        else
+            video.open(PathWithCHN(videopath));
     }
 
     QFile result(resultname);
@@ -1342,6 +1353,10 @@ void PangolinThread::run()
         if(pangolin::ShouldQuit())
             break;
         if(video.read(pglFrame)){
+            if(videotype){
+                pglFrame = pglFrame(cv::Rect(0, 0, 400, 400));
+            }
+
             bool ok = mt.Track(pglFrame, K, d, H, rMat, tVec);
             matchimg = MatToQImage(mt.matchImg);
             emit sendimg1();
@@ -2017,3 +2032,54 @@ void MainWindow::on_pushButton_4_clicked()
     win3->show();
 }
 
+
+void MainWindow::on_pushButton_5_clicked()
+{
+    video2path = QFileDialog::getOpenFileName(this, "选择双目视频", "/", "视频文件(*.avi *.mp4);;");
+    if(video2path.isEmpty())
+        return;
+    qDebug()<<video2path;
+    cv::VideoCapture video2;
+    video2.open(PathWithCHN(video2path));
+    cv::Mat frame2;
+    video2.read(frame2);
+    cv::resize(frame2, frame2, cv::Size(800, 400));
+    cv::Mat leftf = frame2(cv::Rect(0, 0, 400, 400));
+
+    cv::imwrite("./data/1111.jpg", leftf);
+//    cv::imwrite("./data/导航定位/left.jpg", leftf);
+    QImage img2("./data/1111.jpg");
+
+//    QImage img3 = MatToQImage(leftf);
+    sc = new ImageScene();
+    showpic(img2, ui->s2view);
+    videotype = true;
+    videos = 2;
+}
+
+
+void MainWindow::on_pushButton_6_clicked()      //打开双目相机
+{
+    ui->groupBox_2->show();
+    cv::VideoCapture v(cid, cv::CAP_DSHOW);
+    while(1){
+        cv::Mat lf, rf;
+        v.read(cframe);
+        int row = cframe.rows, col = cframe.cols;
+//        qDebug()<<col<<" "<<row;
+        cv::namedWindow("left", CV_WINDOW_NORMAL);
+        cv::namedWindow("right", CV_WINDOW_NORMAL);
+        lf = cframe(cv::Rect(0, 0, 1920, 1080));
+        rf = cframe(cv::Rect(1920, 0, 1920 ,1080));
+//        lf = cframe(cv::Rect(0, 0, col/2, row));
+//        rf = cframe(cv::Rect(col/2, 0, col/2 ,row));
+        cv::imshow("left", lf);
+        cv::imshow("right", rf);
+        cv::waitKey(33);
+        if(cv::getWindowProperty("left", cv::WND_PROP_VISIBLE) < 1 ||
+                cv::getWindowProperty("right", cv::WND_PROP_VISIBLE) < 1)
+            break;
+    }
+    cv::destroyAllWindows();
+    v.release();
+}
